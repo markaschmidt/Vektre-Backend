@@ -1,0 +1,62 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${API_HOST_BIND:-0.0.0.0}:${API_HOST_PORT:-3011}:3000'
+    env_file:
+      - ../.env
+    environment:
+      PORT: 3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:1420,http://127.0.0.1:1420,http://localhost:5173,http://127.0.0.1:5173}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NOTION_REDIRECT_URI: ${NOTION_REDIRECT_URI:-http://localhost:3011/integrations/notion/oauth/callback}
+      # Optional: point at a containerized Ollama instance on the same network.
+      # OLLAMA_BASE_URL: http://ollama:11434
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+
+  collab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ['node', 'dist/collaboration-yjs/yjs-server.js']
+    ports:
+      - '${COLLAB_HOST_BIND:-0.0.0.0}:${COLLAB_HOST_PORT:-3012}:3012'
+    env_file:
+      - ../.env
+    environment:
+      COLLAB_PORT: 3012
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SUPABASE_COLLAB_BUCKET: ${SUPABASE_COLLAB_BUCKET:-collaboration-snapshots}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:

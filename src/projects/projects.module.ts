@@ -1,0 +1,20 @@
+import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
+import { PROJECT_OPS_QUEUE } from '../queues/queue-names.js';
+import { IntegrationsModule } from '../integrations/integrations.module.js';
+import { ProjectsController } from './projects.controller.js';
+import { ProjectsProcessor } from './projects.processor.js';
+import { ProjectsService } from './projects.service.js';
+import { AssetsService } from './assets.service.js';
+import { NotificationsModule } from '../notifications/notifications.module.js';
+
+@Module({
+  imports: [
+    BullModule.registerQueue({ name: PROJECT_OPS_QUEUE }),
+    IntegrationsModule,
+    NotificationsModule,
+  ],
+  controllers: [ProjectsController],
+  providers: [ProjectsService, ProjectsProcessor, AssetsService],
+})
+export class ProjectsModule {}

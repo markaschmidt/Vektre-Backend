@@ -1,0 +1,175 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import type { ProjectMemberRole } from '../integrations/app-data.types.js';
+import { NotificationsRepository } from './repositories/notifications.repository.js';
+import type { ListNotificationsDto } from './dto/list-notifications.dto.js';
+import type {
+  CommentNotificationInput,
+  NotificationResponse,
+  NotificationType,
+  ProjectRoleChangeNotificationInput,
+} from './models/notification.model.js';
+import { toNotificationResponse } from './models/notification.model.js';
+
+const ROLE_RANK: Record<ProjectMemberRole, number> = {
+  viewer: 1,
+  commenter: 2,
+  editor: 3,
+  owner: 4,
+};
+
+@Injectable()
+export class NotificationsService {
+  constructor(private readonly notifications: NotificationsRepository) {}
+
+  async listForUser(
+    userId: string,
+    dto: ListNotificationsDto,
+  ): Promise<NotificationResponse[]> {
+    const rows = await this.notifications.listForUser(userId, {
+      status: dto.status ?? 'all',
+      limit: dto.limit,
+      before: dto.before ? new Date(dto.before) : undefined,
+    });
+    return rows.map(toNotificationResponse);
+  }
+
+  async unreadCount(userId: string): Promise<{ count: number }> {
+    return { count: await this.notifications.unreadCount(userId) };
+  }
+
+  async markRead(
+    userId: string,
+    notificationId: string,
+  ): Promise<NotificationResponse> {
+    const row = await this.notifications.markRead(userId, notificationId);
+    if (!row) throw new NotFoundException('Notification not found');
+    return toNotificationResponse(row);
+  }
+
+  async markAllRead(userId: string): Promise<{ updatedCount: number }> {
+    return { updatedCount: await this.notifications.markAllRead(userId) };
+  }
+
+  async notifyProjectInvitation(input: {
+    projectId: string;
+    projectName: string;
+    userId: string;
+    actorUserId: string;
+    role: ProjectMemberRole;
+  }): Promise<void> {
+    if (input.userId === input.actorUserId) return;
+    await this.notifications.create({
+      userId: input.userId,
+      actorUserId: input.actorUserId,
+      projectId: input.projectId,
+      type: 'project_invitation',
+      title: `You were added to ${input.projectName}`,
+      body: `You now have ${input.role} access to this project.`,
+      metadata: { role: input.role },
+    });
+  }
+
+  async notifyProjectRemoval(input: {
+    projectId: string;
+    projectName: string;
+    userId: string;
+    actorUserId: string;
+    previousRole?: ProjectMemberRole;
+  }): Promise<void> {
+    if (input.userId === input.actorUserId) return;
+    await this.notifications.create({
+      userId: input.userId,
+      actorUserId: input.actorUserId,
+      projectId: input.projectId,
+      type: 'project_removed',
+      title: `You were removed from ${input.projectName}`,
+      body: 'You no longer have access to this project.',
+      metadata: { previousRole: input.previousRole },
+    });
+  }
+
+  async notifyProjectRoleChange(
+    input: ProjectRoleChangeNotificationInput,
+  ): Promise<void> {
+    if (input.userId === input.actorUserId) return;
+    if (!input.previousRole || input.previousRole === input.newRole) return;
+
+    const type = roleChangeType(input.previousRole, input.newRole);
+    await this.notifications.create({
+      userId: input.userId,
+      actorUserId: input.actorUserId,
+      projectId: input.projectId,
+      type,
+      title: roleChangeTitle(type, input.projectName),
+      body: `Your role changed from ${input.previousRole} to ${input.newRole}.`,
+      metadata: {
+        previousRole: input.previousRole,
+        newRole: input.newRole,
+      },
+    });
+  }
+
+  async notifyCommentMention(input: CommentNotificationInput): Promise<void> {
+    if (input.recipientUserId === input.authorUserId) return;
+    await this.createCommentNotification('comment_mention', input);
+  }
+
+  async notifyCommentReply(input: CommentNotificationInput): Promise<void> {
+    if (input.recipientUserId === input.authorUserId) return;
+    await this.createCommentNotification('comment_reply', input);
+  }
+
+  private async createCommentNotification(
+    type: Extract<NotificationType, 'comment_mention' | 'comment_reply'>,
+    input: CommentNotificationInput,
+  ): Promise<void> {
+    await this.notifications.create({
+      userId: input.recipientUserId,
+      actorUserId: input.authorUserId,
+      projectId: input.projectId,
+      assetId: input.targetType === 'asset' ? input.targetId : undefined,
+      documentId: input.targetType === 'document' ? input.targetId : undefined,
+      commentId: input.commentId,
+      parentCommentId: input.parentCommentId,
+      type,
+      title:
+        type === 'comment_mention'
+          ? 'You were mentioned in a comment'
+          : 'Someone replied to your comment',
+      body: excerpt(input.body),
+      metadata: {
+        targetType: input.targetType,
+        targetId: input.targetId,
+      },
+    });
+  }
+}
+
+function roleChangeType(
+  previousRole: ProjectMemberRole,
+  newRole: ProjectMemberRole,
+): Extract<
+  NotificationType,
+  'project_role_promoted' | 'project_role_demoted' | 'project_role_changed'
+> {
+  if (ROLE_RANK[newRole] > ROLE_RANK[previousRole]) return 'project_role_promoted';
+  if (ROLE_RANK[newRole] < ROLE_RANK[previousRole]) return 'project_role_demoted';
+  return 'project_role_changed';
+}
+
+function roleChangeTitle(type: NotificationType, projectName: string): string {
+  switch (type) {
+    case 'project_role_promoted':
+      return `Your role was promoted in ${projectName}`;
+    case 'project_role_demoted':
+      return `Your role was changed in ${projectName}`;
+    default:
+      return `Your project role changed in ${projectName}`;
+  }
+}
+
+function excerpt(body: string): string {
+  const normalized = body.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= 240) return normalized;
+  return `${normalized.slice(0, 237)}...`;
+}
