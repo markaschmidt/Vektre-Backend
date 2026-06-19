@@ -13,9 +13,9 @@ import { Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { CurrentUser } from '../../auth/current-user.decorator.js';
 import type { AuthenticatedUser } from '../../auth/authenticated-user.model.js';
-import { Public } from '../../auth/public.decorator.js';
 import { NotionService } from './notion.service.js';
 import { AppDataService } from '../app-data.service.js';
+import { ProviderCredentialService } from '../provider-credential.service.js';
 import {
   INTEGRATION_SYNC_QUEUE,
   JOB_NOTION_IMPORT_PAGE,
@@ -30,18 +30,12 @@ import {
 } from './notion.dto.js';
 import type { NotionPageImportJob } from './notion.model.js';
 
-/**
- * Token store keyed by userId.
- * In production, store Notion access tokens in a secure server-side store
- * (encrypted column, Vault, etc.) rather than in-process memory.
- */
-const notionTokenStore = new Map<string, string>();
-
 @Controller('integrations/notion')
 export class NotionController {
   constructor(
     private readonly notion: NotionService,
     private readonly appData: AppDataService,
+    private readonly credentials: ProviderCredentialService,
     @InjectQueue(INTEGRATION_SYNC_QUEUE)
     private readonly syncQueue: Queue,
   ) {}
@@ -49,21 +43,23 @@ export class NotionController {
   /**
    * POST /integrations/notion/oauth/exchange
    * Exchange a Notion OAuth code for an access token.
-   * Returns minimal workspace info; never returns the token to the client.
+   * Requires the caller's Supabase JWT so tokens are stored for the signed-in user.
    */
-  @Public()
   @Post('oauth/exchange')
-  async exchangeOAuth(@Body() dto: NotionOAuthExchangeDto) {
+  async exchangeOAuth(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: NotionOAuthExchangeDto,
+  ) {
     const tokenResponse = await this.notion.exchangeOAuthCode({
       code: dto.code,
       redirectUri: dto.redirectUri,
     });
 
-    // Persist the token server-side keyed to the workspace/bot owner.
-    // In production replace with a proper encrypted secrets store.
-    if (tokenResponse.owner?.user?.id) {
-      notionTokenStore.set(tokenResponse.owner.user.id, tokenResponse.access_token);
-    }
+    await this.credentials.save({
+      userId: user.id,
+      provider: 'notion',
+      accessToken: tokenResponse.access_token,
+    });
 
     return {
       workspaceId: tokenResponse.workspace_id,
@@ -81,7 +77,7 @@ export class NotionController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: NotionSearchDto,
   ) {
-    const token = this.getTokenOrThrow(user.id);
+    const token = await this.getTokenOrThrow(user.id);
     return this.notion.search({
       accessToken: token,
       query: dto.query,
@@ -99,7 +95,7 @@ export class NotionController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('pageId') pageId: string,
   ) {
-    const token = this.getTokenOrThrow(user.id);
+    const token = await this.getTokenOrThrow(user.id);
     return this.notion.getPageBlocks({
       accessToken: token,
       pageId,
@@ -117,7 +113,7 @@ export class NotionController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: { pageId: string; pageTitle?: string },
   ) {
-    const token = this.getTokenOrThrow(user.id);
+    await this.getTokenOrThrow(user.id);
 
     const requestId = randomUUID();
     const jobId = bullJobId('notion-import', user.id, dto.pageId, requestId);
@@ -134,7 +130,6 @@ export class NotionController {
       userId: user.id,
       pageId: dto.pageId,
       pageTitle: dto.pageTitle ?? 'Untitled',
-      notionToken: token,
     };
 
     await this.syncQueue.add(JOB_NOTION_IMPORT_PAGE, payload, {
@@ -155,7 +150,7 @@ export class NotionController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: NotionExportPageDto,
   ) {
-    const token = this.getTokenOrThrow(user.id);
+    await this.getTokenOrThrow(user.id);
 
     const requestId = randomUUID();
     const jobId = bullJobId('notion-export', user.id, dto.pageId, requestId);
@@ -172,7 +167,6 @@ export class NotionController {
       userId: user.id,
       pageId: dto.pageId,
       pageTitle: '',
-      notionToken: token,
     };
 
     await this.syncQueue.add(JOB_NOTION_EXPORT_PAGE, payload, {
@@ -183,13 +177,13 @@ export class NotionController {
     return { requestId, status: 'queued', pageId: dto.pageId };
   }
 
-  private getTokenOrThrow(userId: string): string {
-    const token = notionTokenStore.get(userId);
-    if (!token) {
+  private async getTokenOrThrow(userId: string): Promise<string> {
+    const stored = await this.credentials.get(userId, 'notion');
+    if (!stored?.accessToken) {
       throw new UnauthorizedException(
         'Notion is not connected. Complete OAuth via POST /integrations/notion/oauth/exchange.',
       );
     }
-    return token;
+    return stored.accessToken;
   }
 }

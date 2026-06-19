@@ -2,15 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { GoogleConfig } from '../../config/outbound.config.js';
 import { outboundJson } from '../outbound-http.js';
-import { ProviderError } from '../provider-error.model.js';
+import { ProviderError, classifyHttpStatus } from '../provider-error.model.js';
 import type {
   GoogleDriveUser,
   GoogleDriveFile,
   GoogleDriveFileList,
+  GoogleDriveExportResult,
+  GoogleDriveExportTarget,
 } from './google-drive.model.js';
 
 const PROVIDER = 'google-drive';
 const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
+const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
 
 interface DriveAboutResponse {
   user: {
@@ -208,4 +211,242 @@ export class GoogleDriveService {
     };
     return exportMap[googleMimeType] ?? null;
   }
+
+  /**
+   * Upload content from Vektre into the user's Google Drive.
+   * Supports markdown/text, binary files, and Google Doc conversion.
+   */
+  async exportToDrive(opts: {
+    accessToken: string;
+    userId: string;
+    fileName: string;
+    mimeType: string;
+    content: Buffer | string;
+    contentMimeType: string;
+    folderId?: string;
+    fileId?: string;
+  }): Promise<GoogleDriveExportResult> {
+    if (opts.fileId) {
+      return this.updateDriveExport({
+        accessToken: opts.accessToken,
+        userId: opts.userId,
+        fileName: opts.fileName,
+        mimeType: opts.mimeType,
+        content: opts.content,
+        contentMimeType: opts.contentMimeType,
+        fileId: opts.fileId,
+      });
+    }
+
+    return this.createDriveExport(opts);
+  }
+
+  /** @deprecated Use exportToDrive — kept for callers passing markdown-only payloads. */
+  async exportMarkdown(opts: {
+    accessToken: string;
+    userId: string;
+    fileName: string;
+    content: string;
+    targetMimeType?: GoogleDriveExportTarget;
+    folderId?: string;
+    fileId?: string;
+  }): Promise<GoogleDriveExportResult> {
+    const targetMimeType = opts.targetMimeType ?? 'text/markdown';
+    return this.exportToDrive({
+      accessToken: opts.accessToken,
+      userId: opts.userId,
+      fileName: opts.fileName,
+      mimeType: targetMimeType,
+      content: opts.content,
+      contentMimeType:
+        targetMimeType === 'application/vnd.google-apps.document'
+          ? 'text/markdown'
+          : 'text/markdown',
+      folderId: opts.folderId,
+      fileId: opts.fileId,
+    });
+  }
+
+  resolveExportTargetMimeType(mimeType?: string): GoogleDriveExportTarget {
+    const normalized = mimeType?.trim().toLowerCase();
+    if (!normalized) return 'text/markdown';
+
+    if (
+      normalized === 'google-doc' ||
+      normalized === 'google_doc' ||
+      normalized === 'googledoc' ||
+      normalized === 'application/vnd.google-apps.document'
+    ) {
+      return 'application/vnd.google-apps.document';
+    }
+
+    return 'text/markdown';
+  }
+
+  private async createDriveExport(opts: {
+    accessToken: string;
+    userId: string;
+    fileName: string;
+    mimeType: string;
+    content: Buffer | string;
+    contentMimeType: string;
+    folderId?: string;
+  }): Promise<GoogleDriveExportResult> {
+    const metadata: Record<string, unknown> = {
+      name: normalizeDriveExportFileName(opts.fileName, opts.mimeType),
+      mimeType: opts.mimeType,
+    };
+    if (opts.folderId) metadata.parents = [opts.folderId];
+
+    const file = await this.uploadMultipart({
+      accessToken: opts.accessToken,
+      userId: opts.userId,
+      method: 'POST',
+      url: `${DRIVE_UPLOAD_BASE}/files?uploadType=multipart&fields=id,name,mimeType,modifiedTime,webViewLink`,
+      metadata,
+      content: opts.content,
+      contentMimeType: opts.contentMimeType,
+    });
+
+    return toExportResult(file);
+  }
+
+  private async updateDriveExport(opts: {
+    accessToken: string;
+    userId: string;
+    fileName: string;
+    mimeType: string;
+    content: Buffer | string;
+    contentMimeType: string;
+    fileId: string;
+  }): Promise<GoogleDriveExportResult> {
+    const existing = await this.getFile({
+      accessToken: opts.accessToken,
+      userId: opts.userId,
+      fileId: opts.fileId,
+    });
+
+    if (existing.mimeType.startsWith('application/vnd.google-apps.')) {
+      throw ProviderError.permanent(
+        PROVIDER,
+        'Updating native Google Workspace files is not supported. Export without fileId to create a new file.',
+        400,
+      );
+    }
+
+    const file = await this.uploadMultipart({
+      accessToken: opts.accessToken,
+      userId: opts.userId,
+      method: 'PATCH',
+      url: `${DRIVE_UPLOAD_BASE}/files/${opts.fileId}?uploadType=multipart&fields=id,name,mimeType,modifiedTime,webViewLink`,
+      metadata: {
+        name: normalizeDriveExportFileName(opts.fileName, opts.mimeType),
+        mimeType: opts.mimeType,
+      },
+      content: opts.content,
+      contentMimeType: opts.contentMimeType,
+    });
+
+    return toExportResult(file);
+  }
+
+  private async uploadMultipart(opts: {
+    accessToken: string;
+    userId: string;
+    method: 'POST' | 'PATCH';
+    url: string;
+    metadata: Record<string, unknown>;
+    content: Buffer | string;
+    contentMimeType: string;
+  }): Promise<GoogleDriveFile> {
+    const boundary = `vektre_${cryptoRandomBoundary()}`;
+    const body = buildMultipartBody(
+      boundary,
+      opts.metadata,
+      opts.content,
+      opts.contentMimeType,
+    );
+
+    const response = await fetch(opts.url, {
+      method: opts.method,
+      headers: {
+        Authorization: `Bearer ${opts.accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body: body as BodyInit,
+      signal: AbortSignal.timeout(this.cfg.timeoutMs),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw classifyHttpStatus(PROVIDER, response.status, text.slice(0, 300));
+    }
+
+    const data = (await response.json()) as GoogleDriveFile;
+    this.logger.log(
+      JSON.stringify({
+        event: 'google_drive_export_complete',
+        userId: opts.userId,
+        fileId: data.id,
+        mimeType: data.mimeType,
+      }),
+    );
+    return data;
+  }
+}
+
+function toExportResult(file: GoogleDriveFile): GoogleDriveExportResult {
+  return {
+    fileId: file.id,
+    fileName: file.name,
+    mimeType: file.mimeType,
+    webViewLink: file.webViewLink,
+    modifiedTime: file.modifiedTime,
+  };
+}
+
+export function normalizeDriveExportFileName(
+  fileName: string,
+  mimeType: string,
+): string {
+  const trimmed = fileName.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ');
+  if (!trimmed) {
+    return mimeType === 'text/markdown' ? 'Untitled.md' : 'Untitled';
+  }
+
+  if (mimeType === 'text/markdown') {
+    return trimmed.toLowerCase().endsWith('.md') ? trimmed : `${trimmed}.md`;
+  }
+
+  if (mimeType === 'application/vnd.google-apps.document') {
+    return trimmed.replace(/\.md$/i, '');
+  }
+
+  return trimmed;
+}
+
+function buildMultipartBody(
+  boundary: string,
+  metadata: Record<string, unknown>,
+  content: Buffer | string,
+  contentMimeType: string,
+): Buffer {
+  const prefix = Buffer.from(
+    [
+      `--${boundary}`,
+      'Content-Type: application/json; charset=UTF-8',
+      '',
+      JSON.stringify(metadata),
+      `--${boundary}`,
+      `Content-Type: ${contentMimeType}`,
+      '',
+    ].join('\r\n'),
+  );
+  const contentBuffer = typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
+  const suffix = Buffer.from(`\r\n--${boundary}--\r\n`);
+  return Buffer.concat([prefix, contentBuffer, suffix]);
+}
+
+function cryptoRandomBoundary(): string {
+  return Math.random().toString(36).slice(2, 14);
 }

@@ -28,5 +28,4 @@ export interface NotionPageImportJob {
   userId: string;
   pageId: string;
   pageTitle: string;
-  notionToken: string;
 }

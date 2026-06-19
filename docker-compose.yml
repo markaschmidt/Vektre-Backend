@@ -20,6 +20,7 @@ services:
     ports:
       - '${API_HOST_BIND:-0.0.0.0}:${API_HOST_PORT:-3011}:3000'
     env_file:
+      # Docker loads /root/projects/vektre/.env (parent of this repo), not .env.example
       - ../.env
     environment:
       PORT: 3000

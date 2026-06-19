@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { NotificationsService } from './notifications.service.js';
 import { NotificationsRepository } from './repositories/notifications.repository.js';
+import type { AppDataService } from '../integrations/app-data.service.js';
 
 const repository = {
   create: jest.fn(),
@@ -10,12 +11,20 @@ const repository = {
   markAllRead: jest.fn(),
 };
 
+const appData = {
+  getUserProfilesByIds: jest.fn(),
+};
+
 describe('NotificationsService', () => {
   let service: NotificationsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new NotificationsService(repository as unknown as NotificationsRepository);
+    appData.getUserProfilesByIds.mockResolvedValue(new Map());
+    service = new NotificationsService(
+      repository as unknown as NotificationsRepository,
+      appData as unknown as AppDataService,
+    );
   });
 
   it('creates promotion notifications for upward project role changes', async () => {
@@ -76,5 +85,83 @@ describe('NotificationsService', () => {
     await expect(service.markRead('user-1', 'missing')).rejects.toThrow(
       NotFoundException,
     );
+  });
+
+  it('includes actor display name and avatar when listing notifications', async () => {
+    const createdAt = new Date('2026-06-01T12:00:00.000Z');
+    repository.listForUser.mockResolvedValue([
+      {
+        notificationId: 'ntf-1',
+        userId: 'user-2',
+        type: 'project_invitation',
+        actorUserId: 'user-1',
+        projectId: 'proj-1',
+        title: 'You were added to Adventure',
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ]);
+    appData.getUserProfilesByIds.mockResolvedValue(
+      new Map([
+        [
+          'user-1',
+          {
+            userId: 'user-1',
+            displayName: 'Alice Example',
+            avatarUrl: 'https://example.com/alice.png',
+            preferences: {},
+            onDemand: { monthlyCap: null },
+            createdAt,
+            updatedAt: createdAt,
+          },
+        ],
+      ]),
+    );
+
+    const result = await service.listForUser('user-2', {});
+
+    expect(appData.getUserProfilesByIds).toHaveBeenCalledWith(['user-1']);
+    expect(result[0]?.actor).toEqual({
+      userId: 'user-1',
+      displayName: 'Alice Example',
+      avatarUrl: 'https://example.com/alice.png',
+    });
+  });
+
+  it('builds actor display name from profile first and last name', async () => {
+    const createdAt = new Date('2026-06-01T12:00:00.000Z');
+    repository.listForUser.mockResolvedValue([
+      {
+        notificationId: 'ntf-1',
+        userId: 'user-2',
+        type: 'comment_reply',
+        actorUserId: 'user-1',
+        projectId: 'proj-1',
+        title: 'Someone replied to your comment',
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ]);
+    appData.getUserProfilesByIds.mockResolvedValue(
+      new Map([
+        [
+          'user-1',
+          {
+            userId: 'user-1',
+            preferences: { firstName: 'Alice', lastName: 'Example' },
+            onDemand: { monthlyCap: null },
+            createdAt,
+            updatedAt: createdAt,
+          },
+        ],
+      ]),
+    );
+
+    const result = await service.listForUser('user-2', {});
+
+    expect(result[0]?.actor).toEqual({
+      userId: 'user-1',
+      displayName: 'Alice Example',
+    });
   });
 });

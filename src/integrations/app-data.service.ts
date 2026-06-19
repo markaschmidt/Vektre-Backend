@@ -151,6 +151,24 @@ export class AppDataService {
     return data ? mapUserProfileRow(data) : null;
   }
 
+  async getUserProfilesByIds(userIds: string[]): Promise<Map<string, UserProfileRow>> {
+    const uniqueIds = [...new Set(userIds.filter(Boolean))];
+    if (uniqueIds.length === 0) return new Map();
+
+    this.logger.debug(`getUserProfilesByIds: ${uniqueIds.length} users`);
+    const { data, error } = await this.db()
+      .from('user_profile')
+      .select('*')
+      .in('user_id', uniqueIds);
+    throwOnError('getUserProfilesByIds', error);
+
+    const profiles = new Map<string, UserProfileRow>();
+    for (const row of data ?? []) {
+      profiles.set(row.user_id as string, mapUserProfileRow(row));
+    }
+    return profiles;
+  }
+
   async updateUserPreferences(
     userId: string,
     preferences: Record<string, unknown>,
@@ -808,6 +826,61 @@ export class AppDataService {
   }
 
   // ─── Internal helpers ───────────────────────────────────────────────────────
+
+  // ─── Provider OAuth Credentials (ciphertext at rest — use ProviderCredentialService) ─
+
+  async upsertProviderCredential(row: {
+    userId: string;
+    provider: string;
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt?: Date;
+  }): Promise<void> {
+    this.logger.debug(`upsertProviderCredential: ${row.userId} / ${row.provider}`);
+    const now = new Date().toISOString();
+    const { error } = await this.db()
+      .from('provider_credential')
+      .upsert(
+        {
+          credential_id: `${row.userId}:${row.provider}`,
+          user_id: row.userId,
+          provider: row.provider,
+          access_token: row.accessToken,
+          refresh_token: row.refreshToken ?? null,
+          expires_at: row.expiresAt?.toISOString() ?? null,
+          updated_at: now,
+        },
+        { onConflict: 'user_id,provider' },
+      );
+    throwOnError('upsertProviderCredential', error);
+  }
+
+  async getProviderCredential(
+    userId: string,
+    provider: string,
+  ): Promise<{
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt?: number;
+  } | null> {
+    this.logger.debug(`getProviderCredential: ${userId} / ${provider}`);
+    const { data, error } = await this.db()
+      .from('provider_credential')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('provider', provider)
+      .maybeSingle();
+    throwOnError('getProviderCredential', error);
+    if (!data?.access_token) return null;
+
+    return {
+      accessToken: data.access_token as string,
+      refreshToken: (data.refresh_token as string | null) ?? undefined,
+      expiresAt: data.expires_at
+        ? new Date(data.expires_at as string).getTime()
+        : undefined,
+    };
+  }
 
   private db() {
     return this.supabase.getAdminClient();

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { ProjectMemberRole } from '../integrations/app-data.types.js';
+import { AppDataService } from '../integrations/app-data.service.js';
 import { NotificationsRepository } from './repositories/notifications.repository.js';
 import type { ListNotificationsDto } from './dto/list-notifications.dto.js';
 import type {
@@ -8,7 +9,10 @@ import type {
   NotificationType,
   ProjectRoleChangeNotificationInput,
 } from './models/notification.model.js';
-import { toNotificationResponse } from './models/notification.model.js';
+import {
+  toNotificationActorSummary,
+  toNotificationResponse,
+} from './models/notification.model.js';
 
 const ROLE_RANK: Record<ProjectMemberRole, number> = {
   viewer: 1,
@@ -19,7 +23,10 @@ const ROLE_RANK: Record<ProjectMemberRole, number> = {
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly notifications: NotificationsRepository) {}
+  constructor(
+    private readonly notifications: NotificationsRepository,
+    private readonly appData: AppDataService,
+  ) {}
 
   async listForUser(
     userId: string,
@@ -30,7 +37,7 @@ export class NotificationsService {
       limit: dto.limit,
       before: dto.before ? new Date(dto.before) : undefined,
     });
-    return rows.map(toNotificationResponse);
+    return this.enrichNotifications(rows);
   }
 
   async unreadCount(userId: string): Promise<{ count: number }> {
@@ -43,7 +50,8 @@ export class NotificationsService {
   ): Promise<NotificationResponse> {
     const row = await this.notifications.markRead(userId, notificationId);
     if (!row) throw new NotFoundException('Notification not found');
-    return toNotificationResponse(row);
+    const [response] = await this.enrichNotifications([row]);
+    return response;
   }
 
   async markAllRead(userId: string): Promise<{ updatedCount: number }> {
@@ -117,6 +125,22 @@ export class NotificationsService {
   async notifyCommentReply(input: CommentNotificationInput): Promise<void> {
     if (input.recipientUserId === input.authorUserId) return;
     await this.createCommentNotification('comment_reply', input);
+  }
+
+  private async enrichNotifications(
+    rows: Awaited<ReturnType<NotificationsRepository['listForUser']>>,
+  ): Promise<NotificationResponse[]> {
+    const actorIds = rows
+      .map((row) => row.actorUserId)
+      .filter((id): id is string => Boolean(id));
+    const profiles = await this.appData.getUserProfilesByIds(actorIds);
+
+    return rows.map((row) => {
+      const actor = row.actorUserId
+        ? toNotificationActorSummary(row.actorUserId, profiles.get(row.actorUserId))
+        : undefined;
+      return toNotificationResponse(row, actor);
+    });
   }
 
   private async createCommentNotification(

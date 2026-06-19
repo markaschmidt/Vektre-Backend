@@ -26,3 +26,24 @@ export interface GoogleDriveImportJob {
   mimeType: string;
   exportMimeType?: string;
 }
+
+export interface GoogleDriveExportResult {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  webViewLink?: string;
+  modifiedTime?: string;
+}
+
+export type GoogleDriveExportTarget =
+  | 'text/markdown'
+  | 'application/vnd.google-apps.document';
+
+export interface GoogleDriveExportInput {
+  fileName: string;
+  mimeType: string;
+  content: Buffer | string;
+  contentMimeType: string;
+  folderId?: string;
+  fileId?: string;
+}

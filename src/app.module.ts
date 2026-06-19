@@ -11,6 +11,7 @@ import { GoogleDriveModule } from './integrations/google-drive/google-drive.modu
 import { NotionModule } from './integrations/notion/notion.module.js';
 import { ObsidianModule } from './integrations/obsidian/obsidian.module.js';
 import { outboundConfig } from './config/outbound.config.js';
+import { integrationCryptoConfig } from './config/integration-crypto.config.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { CollaborationModule } from './collaboration/collaboration.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
@@ -19,7 +20,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [outboundConfig],
+      load: [outboundConfig, integrationCryptoConfig],
     }),
     QueuesModule,
     IntegrationsModule,

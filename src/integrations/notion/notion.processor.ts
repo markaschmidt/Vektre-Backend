@@ -4,6 +4,7 @@ import { Job } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { INTEGRATION_SYNC_QUEUE } from '../../queues/queue-names.js';
 import { AppDataService } from '../app-data.service.js';
+import { ProviderCredentialService } from '../provider-credential.service.js';
 import { NotionService } from './notion.service.js';
 import type { NotionPageImportJob } from './notion.model.js';
 
@@ -14,6 +15,7 @@ export class NotionProcessor extends WorkerHost {
   constructor(
     private readonly notion: NotionService,
     private readonly appData: AppDataService,
+    private readonly credentials: ProviderCredentialService,
   ) {
     super();
   }
@@ -34,12 +36,14 @@ export class NotionProcessor extends WorkerHost {
   }
 
   private async handleImportPage(job: Job<NotionPageImportJob>): Promise<void> {
-    const { requestId, userId, pageId, pageTitle, notionToken } = job.data;
+    const { requestId, userId, pageId, pageTitle } = job.data;
 
     await this.appData.updateRequestStatus(requestId, 'processing');
 
+    const token = await this.requireNotionToken(userId);
+
     const blocks = await this.notion.getPageBlocks({
-      accessToken: notionToken,
+      accessToken: token,
       pageId,
       userId,
     });
@@ -72,12 +76,14 @@ export class NotionProcessor extends WorkerHost {
   }
 
   private async handleExportPage(job: Job<NotionPageImportJob>): Promise<void> {
-    const { requestId, userId, pageId, notionToken } = job.data;
+    const { requestId, userId, pageId } = job.data;
 
     await this.appData.updateRequestStatus(requestId, 'processing');
 
+    const token = await this.requireNotionToken(userId);
+
     const blocks = await this.notion.getPageBlocks({
-      accessToken: notionToken,
+      accessToken: token,
       pageId,
       userId,
     });
@@ -109,5 +115,13 @@ export class NotionProcessor extends WorkerHost {
         blockCount: blocks.length,
       }),
     );
+  }
+
+  private async requireNotionToken(userId: string): Promise<string> {
+    const stored = await this.credentials.get(userId, 'notion');
+    if (!stored?.accessToken) {
+      throw new Error(`No Notion OAuth token for user ${userId}`);
+    }
+    return stored.accessToken;
   }
 }

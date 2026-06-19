@@ -54,9 +54,10 @@ describe('AssetsService', () => {
     appData.getProjectAsset.mockResolvedValue({
       assetId: 'asset-1',
       projectId: 'proj-1',
+      name: 'model.glb',
       objectPath: 'projects/proj-1/assets/asset-1/file.bin',
       bucket: 'project-assets',
-      mimeType: 'application/octet-stream',
+      mimeType: 'model/gltf-binary',
     });
 
     const result = await service.getAssetBytes('user-1', 'proj-1', 'asset-1');
@@ -65,6 +66,7 @@ describe('AssetsService', () => {
       'project-assets',
     );
     expect(result.dataBase64).toBe(Buffer.from('hello').toString('base64'));
+    expect(result.name).toBe('model.glb');
   });
 
   it('deletes storage objects and metadata', async () => {

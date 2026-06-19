@@ -16,5 +16,6 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService, ProjectsProcessor, AssetsService],
+  exports: [AssetsService],
 })
 export class ProjectsModule {}

@@ -139,3 +139,12 @@ export interface ShareLinkRow {
   consumedAt?: Date;
   createdAt: Date;
 }
+
+export interface ProviderCredentialRow {
+  userId: string;
+  provider: string;
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: Date;
+  updatedAt: Date;
+}

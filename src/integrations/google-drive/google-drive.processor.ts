@@ -4,8 +4,8 @@ import { Job } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { INTEGRATION_SYNC_QUEUE } from '../../queues/queue-names.js';
 import { AppDataService } from '../app-data.service.js';
-import { SupabaseService } from '../supabase.js';
 import { GoogleDriveService } from './google-drive.service.js';
+import { GoogleDriveTokenService } from './google-drive-token.service.js';
 import { ProviderError } from '../provider-error.model.js';
 import type { GoogleDriveImportJob } from './google-drive.model.js';
 
@@ -20,7 +20,7 @@ export class GoogleDriveProcessor extends WorkerHost {
 
   constructor(
     private readonly driveService: GoogleDriveService,
-    private readonly supabase: SupabaseService,
+    private readonly driveTokens: GoogleDriveTokenService,
     private readonly appData: AppDataService,
   ) {
     super();
@@ -46,7 +46,7 @@ export class GoogleDriveProcessor extends WorkerHost {
   private async handleSync(job: Job<GoogleDriveSyncJob>): Promise<void> {
     const { userId, requestId } = job.data;
 
-    const tokenMeta = await this.supabase.getProviderTokenWithMeta(userId, 'google');
+    const tokenMeta = await this.driveTokens.getTokenMeta(userId);
     if (!tokenMeta?.accessToken) {
       throw ProviderError.permanent(
         'google-drive',
@@ -105,7 +105,7 @@ export class GoogleDriveProcessor extends WorkerHost {
     const { userId, requestId, fileId, fileName, mimeType, exportMimeType } =
       job.data;
 
-    const tokenMeta = await this.supabase.getProviderTokenWithMeta(userId, 'google');
+    const tokenMeta = await this.driveTokens.getTokenMeta(userId);
     if (!tokenMeta?.accessToken) {
       throw ProviderError.permanent(
         'google-drive',

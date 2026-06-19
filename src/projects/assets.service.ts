@@ -133,6 +133,7 @@ export class AssetsService {
     assetId: string,
   ): Promise<{
     assetId: string;
+    name: string;
     mimeType?: string;
     sizeBytes: number;
     dataBase64: string;
@@ -153,6 +154,7 @@ export class AssetsService {
     );
     return {
       assetId,
+      name: asset.name,
       mimeType: asset.mimeType,
       sizeBytes: buffer.byteLength,
       dataBase64: buffer.toString('base64'),

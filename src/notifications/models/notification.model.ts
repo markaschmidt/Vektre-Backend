@@ -1,4 +1,8 @@
-import type { ProjectMemberRole } from '../../integrations/app-data.types.js';
+import type {
+  ProjectMemberRole,
+  UserProfileRow,
+} from '../../integrations/app-data.types.js';
+import { buildDisplayName } from '../../user/user-profile.helpers.js';
 
 export type NotificationType =
   | 'project_invitation'
@@ -12,6 +16,12 @@ export type NotificationType =
 export type NotificationStatusFilter = 'all' | 'unread';
 
 export type CommentNotificationTargetType = 'project' | 'asset' | 'document';
+
+export interface NotificationActorSummary {
+  userId: string;
+  displayName?: string;
+  avatarUrl?: string;
+}
 
 export interface NotificationRow {
   notificationId: string;
@@ -35,6 +45,7 @@ export interface NotificationResponse {
   notificationId: string;
   type: NotificationType;
   actorUserId?: string;
+  actor?: NotificationActorSummary;
   projectId?: string;
   assetId?: string;
   documentId?: string;
@@ -88,11 +99,32 @@ export interface CommentNotificationInput {
   parentCommentId?: string;
 }
 
-export function toNotificationResponse(row: NotificationRow): NotificationResponse {
+export function toNotificationActorSummary(
+  userId: string,
+  profile: UserProfileRow | null | undefined,
+): NotificationActorSummary {
+  const displayName = buildDisplayName(
+    profile?.displayName ?? undefined,
+    profile?.preferences?.firstName,
+    profile?.preferences?.lastName,
+  );
+
+  return {
+    userId,
+    ...(displayName ? { displayName } : {}),
+    ...(profile?.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+  };
+}
+
+export function toNotificationResponse(
+  row: NotificationRow,
+  actor?: NotificationActorSummary,
+): NotificationResponse {
   return {
     notificationId: row.notificationId,
     type: row.type,
     actorUserId: row.actorUserId,
+    actor,
     projectId: row.projectId,
     assetId: row.assetId,
     documentId: row.documentId,
