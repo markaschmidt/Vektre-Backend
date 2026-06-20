@@ -1,6 +1,9 @@
 import {
   GoogleDriveService,
   normalizeDriveExportFileName,
+  buildMultipartBody,
+  buildDriveFileMetadata,
+  resolveDriveMediaContentType,
 } from './google-drive.service.js';
 
 describe('GoogleDriveService.getExportMimeType', () => {
@@ -72,5 +75,53 @@ describe('normalizeDriveExportFileName', () => {
     expect(
       normalizeDriveExportFileName('Story Draft.md', 'application/vnd.google-apps.document'),
     ).toBe('Story Draft');
+  });
+});
+
+describe('buildDriveFileMetadata', () => {
+  it('omits text/markdown mimeType and keeps .md filename', () => {
+    expect(
+      buildDriveFileMetadata({ fileName: 'Story', mimeType: 'text/markdown' }),
+    ).toEqual({ name: 'Story.md' });
+  });
+
+  it('sets google doc conversion mimeType', () => {
+    expect(
+      buildDriveFileMetadata({
+        fileName: 'Story',
+        mimeType: 'application/vnd.google-apps.document',
+      }),
+    ).toEqual({ name: 'Story', mimeType: 'application/vnd.google-apps.document' });
+  });
+});
+
+describe('resolveDriveMediaContentType', () => {
+  it('maps markdown to text/plain for Google multipart media part', () => {
+    expect(resolveDriveMediaContentType('text/markdown')).toBe('text/plain; charset=UTF-8');
+  });
+
+  it('preserves binary mime types', () => {
+    expect(resolveDriveMediaContentType('model/gltf-binary')).toBe('model/gltf-binary');
+  });
+});
+
+describe('buildMultipartBody', () => {
+  it('builds RFC 2387 multipart/related with json metadata then media', () => {
+    const boundary = 'test_boundary';
+    const body = buildMultipartBody(
+      boundary,
+      { name: 'Story.md' },
+      '# Title\n\nBody',
+      'text/plain',
+    );
+    const text = body.toString('utf8');
+
+    expect(text.startsWith(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`)).toBe(
+      true,
+    );
+    expect(text).toContain('{"name":"Story.md"}');
+    expect(text).toContain(`\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n`);
+    expect(text).toContain('# Title\n\nBody');
+    expect(text.endsWith(`\r\n--${boundary}--`)).toBe(true);
   });
 });

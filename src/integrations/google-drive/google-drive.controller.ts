@@ -268,10 +268,7 @@ export class GoogleDriveController {
       fileName: fileName.trim(),
       mimeType: targetMimeType,
       content: textContent,
-      contentMimeType:
-        targetMimeType === 'application/vnd.google-apps.document'
-          ? 'text/markdown'
-          : 'text/markdown',
+      contentMimeType: 'text/plain',
     };
   }
 

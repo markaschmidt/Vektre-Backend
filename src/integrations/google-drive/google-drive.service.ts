@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'node:crypto';
 import type { GoogleConfig } from '../../config/outbound.config.js';
 import { outboundJson } from '../outbound-http.js';
 import { ProviderError, classifyHttpStatus } from '../provider-error.model.js';
@@ -258,10 +259,7 @@ export class GoogleDriveService {
       fileName: opts.fileName,
       mimeType: targetMimeType,
       content: opts.content,
-      contentMimeType:
-        targetMimeType === 'application/vnd.google-apps.document'
-          ? 'text/markdown'
-          : 'text/markdown',
+      contentMimeType: 'text/plain',
       folderId: opts.folderId,
       fileId: opts.fileId,
     });
@@ -292,11 +290,11 @@ export class GoogleDriveService {
     contentMimeType: string;
     folderId?: string;
   }): Promise<GoogleDriveExportResult> {
-    const metadata: Record<string, unknown> = {
-      name: normalizeDriveExportFileName(opts.fileName, opts.mimeType),
+    const metadata = buildDriveFileMetadata({
+      fileName: opts.fileName,
       mimeType: opts.mimeType,
-    };
-    if (opts.folderId) metadata.parents = [opts.folderId];
+      folderId: opts.folderId,
+    });
 
     const file = await this.uploadMultipart({
       accessToken: opts.accessToken,
@@ -339,10 +337,10 @@ export class GoogleDriveService {
       userId: opts.userId,
       method: 'PATCH',
       url: `${DRIVE_UPLOAD_BASE}/files/${opts.fileId}?uploadType=multipart&fields=id,name,mimeType,modifiedTime,webViewLink`,
-      metadata: {
-        name: normalizeDriveExportFileName(opts.fileName, opts.mimeType),
+      metadata: buildDriveFileMetadata({
+        fileName: opts.fileName,
         mimeType: opts.mimeType,
-      },
+      }),
       content: opts.content,
       contentMimeType: opts.contentMimeType,
     });
@@ -372,6 +370,7 @@ export class GoogleDriveService {
       headers: {
         Authorization: `Bearer ${opts.accessToken}`,
         'Content-Type': `multipart/related; boundary=${boundary}`,
+        'Content-Length': String(body.byteLength),
       },
       body: body as BodyInit,
       signal: AbortSignal.timeout(this.cfg.timeoutMs),
@@ -425,28 +424,64 @@ export function normalizeDriveExportFileName(
   return trimmed;
 }
 
-function buildMultipartBody(
+/** Metadata for Drive multipart create/update (see Google uploadType=multipart). */
+export function buildDriveFileMetadata(opts: {
+  fileName: string;
+  mimeType: string;
+  folderId?: string;
+}): Record<string, unknown> {
+  const metadata: Record<string, unknown> = {
+    name: normalizeDriveExportFileName(opts.fileName, opts.mimeType),
+  };
+
+  // Google Drive does not accept text/markdown as a stored mimeType — use the
+  // .md extension and let Drive infer, or set an explicit supported type.
+  if (opts.mimeType === 'application/vnd.google-apps.document') {
+    metadata.mimeType = opts.mimeType;
+  } else if (opts.mimeType !== 'text/markdown') {
+    metadata.mimeType = opts.mimeType;
+  }
+
+  if (opts.folderId) metadata.parents = [opts.folderId];
+  return metadata;
+}
+
+/**
+ * Google multipart media parts must use supported MIME types (text/plain, not text/markdown).
+ * @see https://developers.google.com/workspace/drive/api/guides/manage-uploads#multipart
+ */
+export function resolveDriveMediaContentType(contentMimeType: string): string {
+  if (contentMimeType === 'text/markdown' || contentMimeType === 'text/plain') {
+    return 'text/plain; charset=UTF-8';
+  }
+  if (contentMimeType.startsWith('text/')) {
+    return `${contentMimeType}; charset=UTF-8`;
+  }
+  return contentMimeType;
+}
+
+/** Builds a multipart/related body per RFC 2387 and Google Drive upload docs. */
+export function buildMultipartBody(
   boundary: string,
   metadata: Record<string, unknown>,
   content: Buffer | string,
   contentMimeType: string,
 ): Buffer {
-  const prefix = Buffer.from(
-    [
-      `--${boundary}`,
-      'Content-Type: application/json; charset=UTF-8',
-      '',
-      JSON.stringify(metadata),
-      `--${boundary}`,
-      `Content-Type: ${contentMimeType}`,
-      '',
-    ].join('\r\n'),
-  );
   const contentBuffer = typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
-  const suffix = Buffer.from(`\r\n--${boundary}--\r\n`);
-  return Buffer.concat([prefix, contentBuffer, suffix]);
+  const mediaType = resolveDriveMediaContentType(contentMimeType);
+
+  return Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
+      'utf8',
+    ),
+    Buffer.from(JSON.stringify(metadata), 'utf8'),
+    Buffer.from(`\r\n--${boundary}\r\nContent-Type: ${mediaType}\r\n\r\n`, 'utf8'),
+    contentBuffer,
+    Buffer.from(`\r\n--${boundary}--`, 'utf8'),
+  ]);
 }
 
 function cryptoRandomBoundary(): string {
-  return Math.random().toString(36).slice(2, 14);
+  return `vektre_${randomBytes(16).toString('hex')}`;
 }
