@@ -76,6 +76,16 @@ describe('normalizeDriveExportFileName', () => {
       normalizeDriveExportFileName('Story Draft.md', 'application/vnd.google-apps.document'),
     ).toBe('Story Draft');
   });
+
+  it('appends .vkts extension for vkts MIME type', () => {
+    expect(normalizeDriveExportFileName('Budget Sheet', 'application/vnd.vektre.vkts')).toBe(
+      'Budget Sheet.vkts',
+    );
+  });
+
+  it('returns default .vkts filename when empty', () => {
+    expect(normalizeDriveExportFileName('', 'application/vnd.vektre.vkts')).toBe('Untitled.vkts');
+  });
 });
 
 describe('buildDriveFileMetadata', () => {

@@ -12,12 +12,20 @@ export const DEFAULT_LARGE_BODY_SIZE_LIMIT = '100mb';
  * POST routes that accept large base64 bodies.
  * - /projects/:projectId/assets/upload
  * - /projects/:projectId/assets/:assetId/chunks
+ * - /integrations/google-drive/export (.vkts and other binary exports)
  */
 const LARGE_BODY_UPLOAD_ROUTE =
   /^\/projects\/[^/]+\/assets(?:\/upload|\/[^/]+\/chunks)$/;
 
+const LARGE_BODY_INTEGRATION_EXPORT_ROUTE =
+  /^\/integrations\/google-drive\/export$/;
+
 export function isLargeBodyUploadRoute(path: string, method: string): boolean {
-  return method === 'POST' && LARGE_BODY_UPLOAD_ROUTE.test(path);
+  if (method !== 'POST') return false;
+  return (
+    LARGE_BODY_UPLOAD_ROUTE.test(path) ||
+    LARGE_BODY_INTEGRATION_EXPORT_ROUTE.test(path)
+  );
 }
 
 /**

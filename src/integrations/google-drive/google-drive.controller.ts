@@ -27,6 +27,7 @@ import type { GoogleDriveImportJob } from './google-drive.model.js';
 import { ProviderError } from '../provider-error.model.js';
 import { AssetsService } from '../../projects/assets.service.js';
 import { GoogleDriveTokenService } from './google-drive-token.service.js';
+import { VEKTRE_MIME_TYPES } from './google-drive.model.js';
 
 @Controller('integrations/google-drive')
 export class GoogleDriveController {
@@ -91,6 +92,7 @@ export class GoogleDriveController {
       userId: user.id,
       pageToken: query.pageToken,
       query: query.query,
+      folderId: query.folderId,
     });
   }
 
@@ -171,7 +173,11 @@ export class GoogleDriveController {
   /**
    * POST /integrations/google-drive/export
    * Upload content from Vektre into the user's Google Drive.
-   * Supports markdown/text, inline binary (base64), and project assets (e.g. 3D models).
+   *
+   * Modes (provide exactly one content source):
+   * - Storage reference: projectId + assetId (+ fileName, mimeType) — preferred for .vkts
+   * - Markdown: markdown or content (+ fileName)
+   * - Inline binary: contentBase64 (+ fileName, mimeType) — small fallback only
    */
   @Post('export')
   @HttpCode(HttpStatus.OK)
@@ -180,16 +186,26 @@ export class GoogleDriveController {
     @Body() dto: GoogleDriveExportDto,
   ) {
     const token = await this.getAccessTokenOrThrow(user.id);
-    const exportInput = await this.resolveExportInput(user.id, dto);
+    const { input, staging } = await this.resolveExportInput(user.id, dto);
 
     try {
-      return await this.driveService.exportToDrive({
+      const result = await this.driveService.exportToDrive({
         accessToken: token,
         userId: user.id,
-        ...exportInput,
+        ...input,
         folderId: dto.folderId,
         fileId: dto.fileId,
       });
+
+      if (staging) {
+        await this.assets.cleanupEphemeralStagingAssetIfNeeded(
+          user.id,
+          staging.projectId,
+          staging.assetId,
+        );
+      }
+
+      return result;
     } catch (err) {
       throw mapDriveProviderError(err);
     }
@@ -199,10 +215,13 @@ export class GoogleDriveController {
     userId: string,
     dto: GoogleDriveExportDto,
   ): Promise<{
-    fileName: string;
-    mimeType: string;
-    content: Buffer | string;
-    contentMimeType: string;
+    input: {
+      fileName: string;
+      mimeType: string;
+      content: Buffer | string;
+      contentMimeType: string;
+    };
+    staging?: { projectId: string; assetId: string };
   }> {
     const textContent = dto.markdown ?? dto.content;
     const modes = [textContent, dto.contentBase64, dto.assetId].filter(
@@ -210,32 +229,42 @@ export class GoogleDriveController {
     );
     if (modes.length !== 1) {
       throw new BadRequestException(
-        'Provide exactly one export source: markdown/content, contentBase64, or assetId',
+        'Provide exactly one export source: markdown/content, contentBase64, or assetId (+ projectId)',
       );
     }
 
+    // ── Storage reference (staged .vkts, models, etc.) ─────────────────────
     if (dto.assetId) {
       if (!dto.projectId) {
         throw new BadRequestException('projectId is required when exporting assetId');
       }
 
       const asset = await this.assets.getAssetBytes(userId, dto.projectId, dto.assetId);
-      const mimeType = dto.mimeType ?? asset.mimeType ?? 'application/octet-stream';
+      const mimeType = resolveVektreMimeType(
+        dto.mimeType ?? asset.mimeType ?? 'application/octet-stream',
+      );
+      const metadataFileName =
+        typeof asset.metadata?.fileName === 'string' ? asset.metadata.fileName : undefined;
+      const rawName = dto.fileName ?? dto.title ?? metadataFileName ?? asset.name;
+
       return {
-        fileName: dto.fileName ?? dto.title ?? asset.name ?? 'export',
-        mimeType,
-        content: Buffer.from(asset.dataBase64, 'base64'),
-        contentMimeType: mimeType,
+        input: {
+          fileName: ensureVektreExtension(rawName, mimeType),
+          mimeType,
+          content: Buffer.from(asset.dataBase64, 'base64'),
+          contentMimeType: mimeType,
+        },
+        staging: { projectId: dto.projectId, assetId: dto.assetId },
       };
     }
 
+    // ── Inline binary (base64) — small local-only fallback ─────────────────
     if (dto.contentBase64) {
-      const mimeType = dto.mimeType ?? 'application/octet-stream';
-      const fileName = dto.fileName ?? dto.title;
-      if (!fileName?.trim()) {
+      const mimeType = resolveVektreMimeType(dto.mimeType ?? 'application/octet-stream');
+      const rawName = dto.fileName ?? dto.title;
+      if (!rawName?.trim()) {
         throw new BadRequestException('fileName or title is required for binary export');
       }
-
       let buffer: Buffer;
       try {
         buffer = Buffer.from(dto.contentBase64, 'base64');
@@ -245,30 +274,32 @@ export class GoogleDriveController {
       if (buffer.byteLength === 0) {
         throw new BadRequestException('contentBase64 decoded to empty content');
       }
-
       return {
-        fileName: fileName.trim(),
-        mimeType,
-        content: buffer,
-        contentMimeType: mimeType,
+        input: {
+          fileName: ensureVektreExtension(rawName.trim(), mimeType),
+          mimeType,
+          content: buffer,
+          contentMimeType: mimeType,
+        },
       };
     }
 
+    // ── Markdown / plain text ─────────────────────────────────────────────
     if (!textContent?.trim()) {
       throw new BadRequestException('markdown or content is required');
     }
-
     const fileName = dto.fileName ?? dto.title;
     if (!fileName?.trim()) {
       throw new BadRequestException('fileName or title is required');
     }
-
     const targetMimeType = this.driveService.resolveExportTargetMimeType(dto.mimeType);
     return {
-      fileName: fileName.trim(),
-      mimeType: targetMimeType,
-      content: textContent,
-      contentMimeType: 'text/plain',
+      input: {
+        fileName: fileName.trim(),
+        mimeType: targetMimeType,
+        content: textContent,
+        contentMimeType: 'text/plain',
+      },
     };
   }
 
@@ -281,6 +312,29 @@ export class GoogleDriveController {
     }
     return tokenMeta.accessToken;
   }
+}
+
+/**
+ * Map shorthand format strings to the full Vektre vendor MIME type.
+ * Anything not recognised is returned as-is.
+ */
+function resolveVektreMimeType(mimeType: string): string {
+  const normalized = mimeType.trim().toLowerCase();
+  if (normalized === 'vkts' || normalized === 'application/vnd.vektre.vkts') {
+    return VEKTRE_MIME_TYPES.VKTS;
+  }
+  return mimeType;
+}
+
+/**
+ * Ensure the filename carries the correct extension for the .vkts MIME type.
+ * For everything else the caller is responsible for including the extension.
+ */
+function ensureVektreExtension(fileName: string, mimeType: string): string {
+  if (mimeType === VEKTRE_MIME_TYPES.VKTS && !fileName.toLowerCase().endsWith('.vkts')) {
+    return `${fileName}.vkts`;
+  }
+  return fileName;
 }
 
 function mapDriveProviderError(err: unknown): Error {

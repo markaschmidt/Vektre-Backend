@@ -167,6 +167,10 @@ export class UploadProjectAssetDto {
   @IsString()
   promptHash?: string;
 
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
+
   @IsString()
   dataBase64!: string;
 }

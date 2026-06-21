@@ -11,12 +11,29 @@ export interface GoogleDriveFile {
   size?: string;
   modifiedTime?: string;
   webViewLink?: string;
+  isFolder?: boolean;
 }
 
 export interface GoogleDriveFileList {
+  folders: GoogleDriveFile[];
   files: GoogleDriveFile[];
   nextPageToken?: string;
 }
+
+/** Vektre proprietary MIME types stored as opaque blobs in Drive. */
+export const VEKTRE_MIME_TYPES = {
+  /** .vkts — Vektre Sheet: portable document/sheet snapshot (all content, layout, assets) */
+  VKTS: 'application/vnd.vektre.vkts',
+} as const;
+
+/** Google Workspace MIME types we have no import/export support for. */
+export const UNSUPPORTED_IMPORT_MIME_TYPES = new Set([
+  'application/vnd.google-apps.presentation', // Slides
+  'application/vnd.google-apps.spreadsheet',  // Sheets
+  'application/vnd.google-apps.form',
+  'application/vnd.google-apps.site',
+  'application/vnd.google-apps.map',
+]);
 
 export interface GoogleDriveImportJob {
   requestId: string;

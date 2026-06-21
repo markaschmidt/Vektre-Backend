@@ -11,6 +11,7 @@ import type {
   GoogleDriveExportResult,
   GoogleDriveExportTarget,
 } from './google-drive.model.js';
+import { UNSUPPORTED_IMPORT_MIME_TYPES } from './google-drive.model.js';
 
 const PROVIDER = 'google-drive';
 const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
@@ -83,15 +84,30 @@ export class GoogleDriveService {
     userId: string;
     pageToken?: string;
     query?: string;
+    folderId?: string;
   }): Promise<GoogleDriveFileList> {
     const params = new URLSearchParams({
       fields: 'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink)',
       pageSize: '100',
-      orderBy: 'modifiedTime desc',
+      orderBy: 'folder,name',
     });
 
+    // Build the Drive query expression
+    const queryParts: string[] = ['trashed = false'];
+
+    if (opts.folderId) {
+      // Browse a specific folder
+      queryParts.push(`'${opts.folderId}' in parents`);
+    }
+
+    if (opts.query?.trim()) {
+      // Free-text search: match name and omit folder restriction
+      queryParts.push(`name contains '${opts.query.replace(/'/g, "\\'")}'`);
+    }
+
+    params.set('q', queryParts.join(' and '));
+
     if (opts.pageToken) params.set('pageToken', opts.pageToken);
-    if (opts.query) params.set('q', opts.query);
 
     const url = `${DRIVE_BASE}/files?${params.toString()}`;
     const { data } = await outboundJson<DriveFilesResponse>({
@@ -102,10 +118,22 @@ export class GoogleDriveService {
       userId: opts.userId,
     });
 
-    return {
-      files: data.files ?? [],
-      nextPageToken: data.nextPageToken,
-    };
+    const allItems = data.files ?? [];
+    const FOLDER_MIME = 'application/vnd.google-apps.folder';
+
+    const folders: GoogleDriveFile[] = allItems
+      .filter((f) => f.mimeType === FOLDER_MIME)
+      .map((f) => ({ ...f, isFolder: true }));
+
+    const files: GoogleDriveFile[] = allItems
+      .filter(
+        (f) =>
+          f.mimeType !== FOLDER_MIME &&
+          !UNSUPPORTED_IMPORT_MIME_TYPES.has(f.mimeType),
+      )
+      .map((f) => ({ ...f, isFolder: false }));
+
+    return { folders, files, nextPageToken: data.nextPageToken };
   }
 
   /**
@@ -410,7 +438,9 @@ export function normalizeDriveExportFileName(
 ): string {
   const trimmed = fileName.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ');
   if (!trimmed) {
-    return mimeType === 'text/markdown' ? 'Untitled.md' : 'Untitled';
+    if (mimeType === 'text/markdown') return 'Untitled.md';
+    if (mimeType === 'application/vnd.vektre.vkts') return 'Untitled.vkts';
+    return 'Untitled';
   }
 
   if (mimeType === 'text/markdown') {
@@ -419,6 +449,10 @@ export function normalizeDriveExportFileName(
 
   if (mimeType === 'application/vnd.google-apps.document') {
     return trimmed.replace(/\.md$/i, '');
+  }
+
+  if (mimeType === 'application/vnd.vektre.vkts') {
+    return trimmed.toLowerCase().endsWith('.vkts') ? trimmed : `${trimmed}.vkts`;
   }
 
   return trimmed;
@@ -434,11 +468,11 @@ export function buildDriveFileMetadata(opts: {
     name: normalizeDriveExportFileName(opts.fileName, opts.mimeType),
   };
 
-  // Google Drive does not accept text/markdown as a stored mimeType — use the
-  // .md extension and let Drive infer, or set an explicit supported type.
-  if (opts.mimeType === 'application/vnd.google-apps.document') {
-    metadata.mimeType = opts.mimeType;
-  } else if (opts.mimeType !== 'text/markdown') {
+  // text/markdown is not a stored Drive MIME type — omit it and rely on the
+  // .md extension instead. All other types (including vendor types like
+  // application/vnd.vektre.vkts) are passed through so Drive stores them
+  // and they round-trip correctly on download.
+  if (opts.mimeType !== 'text/markdown') {
     metadata.mimeType = opts.mimeType;
   }
 

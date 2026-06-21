@@ -24,6 +24,14 @@ export class GoogleDriveListFilesDto {
   @IsOptional()
   @IsString()
   query?: string;
+
+  /**
+   * When set, list the contents of this Drive folder instead of root/recent.
+   * Pass the folder's Drive file ID.
+   */
+  @IsOptional()
+  @IsString()
+  folderId?: string;
 }
 
 export class GoogleDriveImportFileDto {
@@ -33,7 +41,7 @@ export class GoogleDriveImportFileDto {
 }
 
 export class GoogleDriveExportDto {
-  /** Preferred filename (with or without `.md`). */
+  /** Preferred filename (with or without extension). */
   @IsOptional()
   @IsString()
   @MaxLength(255)
@@ -58,8 +66,8 @@ export class GoogleDriveExportDto {
   content?: string;
 
   /**
-   * Target format. Accepts `markdown`, `google-doc`, or a Drive MIME type.
-   * Defaults to a `.md` file in Drive.
+   * Target format. Accepts `markdown`, `google-doc`, `vkts`,
+   * `application/vnd.vektre.vkts`, or another Drive MIME type.
    */
   @IsOptional()
   @IsString()
@@ -70,12 +78,15 @@ export class GoogleDriveExportDto {
   @IsString()
   folderId?: string;
 
-  /** When set, replaces media on an existing markdown file in Drive. */
+  /** When set, replaces media on an existing file in Drive (not Google Docs). */
   @IsOptional()
   @IsString()
   fileId?: string;
 
-  /** Export a stored project asset (e.g. generated 3D model) by reference. */
+  /**
+   * Load bytes from project storage (preferred for large .vkts exports).
+   * Requires `projectId`. Stage via POST /projects/:projectId/assets/upload first.
+   */
   @IsOptional()
   @IsString()
   projectId?: string;
@@ -84,7 +95,7 @@ export class GoogleDriveExportDto {
   @IsString()
   assetId?: string;
 
-  /** Inline binary payload (base64). Prefer assetId for large files. */
+  /** Inline binary payload (base64). Small local-only fallback; prefer assetId for large files. */
   @IsOptional()
   @IsString()
   @MaxLength(14_000_000)

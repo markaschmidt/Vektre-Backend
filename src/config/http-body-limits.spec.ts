@@ -13,6 +13,12 @@ describe('isLargeBodyUploadRoute', () => {
     ).toBe(true);
   });
 
+  it('allows large bodies for Google Drive export', () => {
+    expect(
+      isLargeBodyUploadRoute('/integrations/google-drive/export', 'POST'),
+    ).toBe(true);
+  });
+
   it('keeps default limit for other project routes', () => {
     expect(isLargeBodyUploadRoute('/projects/proj-1/assets', 'POST')).toBe(false);
     expect(

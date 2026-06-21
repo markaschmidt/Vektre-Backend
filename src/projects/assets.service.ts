@@ -15,6 +15,19 @@ import type {
 
 const SUPABASE_ASSET_REF_PREFIX = 'supabase://project-assets';
 
+/** Short-lived assets staged before Google Drive export (deleted after upload). */
+export const EXPORT_STAGING_ASSET_TYPE = 'export_staging';
+
+export function isEphemeralExportStagingAsset(asset: {
+  assetType: string;
+  metadata?: Record<string, unknown>;
+}): boolean {
+  return (
+    asset.assetType === EXPORT_STAGING_ASSET_TYPE ||
+    asset.metadata?.ephemeral === true
+  );
+}
+
 @Injectable()
 export class AssetsService {
   private readonly logger = new Logger(AssetsService.name);
@@ -60,6 +73,7 @@ export class AssetsService {
       sourceProvider: dto.sourceProvider,
       requestId: dto.requestId,
       promptHash: dto.promptHash,
+      metadata: dto.metadata,
     });
 
     await this.supabase.uploadObject(objectPath, Buffer.from(bytes), dto.mimeType, bucket);
@@ -137,6 +151,8 @@ export class AssetsService {
     mimeType?: string;
     sizeBytes: number;
     dataBase64: string;
+    assetType: string;
+    metadata?: Record<string, unknown>;
   }> {
     await this.assertProjectAccess(userId, projectId);
 
@@ -158,7 +174,32 @@ export class AssetsService {
       mimeType: asset.mimeType,
       sizeBytes: buffer.byteLength,
       dataBase64: buffer.toString('base64'),
+      assetType: asset.assetType,
+      metadata: asset.metadata,
     };
+  }
+
+  /**
+   * Remove ephemeral export-staging assets after a successful Drive upload.
+   * Failures are logged but do not propagate.
+   */
+  async cleanupEphemeralStagingAssetIfNeeded(
+    userId: string,
+    projectId: string,
+    assetId: string,
+  ): Promise<void> {
+    const asset = await this.appData.getProjectAsset(assetId);
+    if (!asset || asset.projectId !== projectId) return;
+    if (!isEphemeralExportStagingAsset(asset)) return;
+
+    try {
+      await this.deleteAsset(userId, projectId, assetId);
+      this.logger.log(`Cleaned up ephemeral staging asset ${assetId}`);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to clean up staging asset ${assetId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /**
