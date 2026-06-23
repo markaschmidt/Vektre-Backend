@@ -7,12 +7,14 @@ import { ProjectsProcessor } from './projects.processor.js';
 import { ProjectsService } from './projects.service.js';
 import { AssetsService } from './assets.service.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
+import { CollaborationModule } from '../collaboration/collaboration.module.js';
 
 @Module({
   imports: [
     BullModule.registerQueue({ name: PROJECT_OPS_QUEUE }),
     IntegrationsModule,
     NotificationsModule,
+    CollaborationModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService, ProjectsProcessor, AssetsService],

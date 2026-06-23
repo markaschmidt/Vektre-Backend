@@ -22,6 +22,7 @@ import {
 import { bullJobId } from '../queues/bull-job-id.js';
 import { defaultJobOptions } from '../queues/job-options.js';
 import { AppDataService } from '../integrations/app-data.service.js';
+import { CollaborationService } from '../collaboration/collaboration.service.js';
 import type {
   ProjectMemberRole,
   ProjectWorkspaceMode,
@@ -60,6 +61,7 @@ export class ProjectsService {
     @InjectQueue(PROJECT_OPS_QUEUE)
     private readonly projectQueue: Queue<ProjectOpJobData, void, ProjectOpJobName>,
     private readonly appData: AppDataService,
+    private readonly collaboration: CollaborationService,
   ) {}
 
   async listProjects(userId: string) {
@@ -183,8 +185,7 @@ export class ProjectsService {
   }
 
   async listMembers(userId: string, projectId: string) {
-    await this.assertCanReadProject(userId, projectId);
-    return this.appData.listProjectMembers(projectId);
+    return this.collaboration.listMembers(projectId, userId);
   }
 
   async addMember(

@@ -7,12 +7,15 @@ import {
 } from '@nestjs/common';
 import { randomBytes, createHash } from 'node:crypto';
 import { AppDataService } from '../integrations/app-data.service.js';
+import { SupabaseService } from '../integrations/supabase.js';
 import type {
   ProjectMemberRole,
   ShareLinkRole,
   ShareLinkRow,
   ProjectMemberRow,
+  UserProfileRow,
 } from '../integrations/app-data.types.js';
+import { buildDisplayName } from '../user/user-profile.helpers.js';
 import type { CreateShareLinkDto } from './dto/create-share-link.dto.js';
 import type { AcceptShareLinkDto } from './dto/accept-share-link.dto.js';
 import {
@@ -29,6 +32,7 @@ export class CollaborationService {
 
   constructor(
     private readonly appData: AppDataService,
+    private readonly supabase: SupabaseService,
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -97,7 +101,7 @@ export class CollaborationService {
     );
 
     return {
-      member: toMemberResponse(result.member),
+      member: await this.enrichMember(result.member),
       projectId: result.link.projectId,
       role: result.link.roleToGrant,
     };
@@ -136,7 +140,7 @@ export class CollaborationService {
   ): Promise<MemberResponse[]> {
     await this.assertMembership(projectId, requestingUserId, 'viewer');
     const members = await this.appData.listProjectMembers(projectId);
-    return members.map(toMemberResponse);
+    return this.enrichMembers(members);
   }
 
   async changeMemberRole(
@@ -179,7 +183,7 @@ export class CollaborationService {
       });
     }
 
-    return toMemberResponse(updated);
+    return this.enrichMember(updated);
   }
 
   async removeMember(
@@ -218,6 +222,34 @@ export class CollaborationService {
 
   // ─── Internal helpers ─────────────────────────────────────────────────────
 
+  private async enrichMembers(members: ProjectMemberRow[]): Promise<MemberResponse[]> {
+    const userIds = members.map((member) => member.userId);
+    const [profiles, emails] = await Promise.all([
+      this.appData.getUserProfilesByIds(userIds),
+      this.supabase.getUserEmailsByIds(userIds),
+    ]);
+
+    return members.map((member) =>
+      toMemberResponse(
+        member,
+        profiles.get(member.userId),
+        emails.get(member.userId),
+      ),
+    );
+  }
+
+  private async enrichMember(member: ProjectMemberRow): Promise<MemberResponse> {
+    const [profiles, emails] = await Promise.all([
+      this.appData.getUserProfilesByIds([member.userId]),
+      this.supabase.getUserEmailsByIds([member.userId]),
+    ]);
+    return toMemberResponse(
+      member,
+      profiles.get(member.userId),
+      emails.get(member.userId),
+    );
+  }
+
   private async assertMembership(
     projectId: string,
     userId: string,
@@ -251,13 +283,26 @@ function toShareLinkResponse(link: ShareLinkRow): ShareLinkResponse {
   };
 }
 
-function toMemberResponse(member: ProjectMemberRow): MemberResponse {
+function toMemberResponse(
+  member: ProjectMemberRow,
+  profile?: UserProfileRow | null,
+  email?: string,
+): MemberResponse {
+  const displayName = buildDisplayName(
+    member.displayName,
+    profile?.preferences?.firstName,
+    profile?.preferences?.lastName,
+    profile?.displayName ?? undefined,
+  );
+
   return {
     membershipId: member.membershipId,
     projectId: member.projectId,
     userId: member.userId,
     role: member.role,
-    displayName: member.displayName,
+    ...(displayName ? { displayName } : {}),
+    ...(profile?.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+    ...(email ? { email } : {}),
     color: member.color,
     addedByUserId: member.addedByUserId,
     createdAt: member.createdAt.toISOString(),

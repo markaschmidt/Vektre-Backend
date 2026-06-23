@@ -13,6 +13,9 @@ import type {
   ShareLinkRole,
   ShareLinkRow,
   UserProfileRow,
+  ProjectInviteRow,
+  InviteType,
+  InviteStatus,
 } from './app-data.types.js';
 
 @Injectable()
@@ -825,6 +828,139 @@ export class AppDataService {
     return { link: mapShareLinkRow(updatedLink), member };
   }
 
+  // ─── Project Invites ─────────────────────────────────────────────────────────
+
+  async createProjectInvite(row: {
+    inviteId: string;
+    projectId: string;
+    invitedByUserId: string;
+    inviteType: InviteType;
+    roleToGrant: ProjectMemberRole;
+    inviteeEmail?: string;
+    inviteeUserId?: string;
+    inviteCodeHash?: string;
+    expiresAt?: Date;
+  }): Promise<ProjectInviteRow> {
+    this.logger.debug(`createProjectInvite: ${row.inviteId} (${row.inviteType}) for project ${row.projectId}`);
+    const now = new Date().toISOString();
+    const { data, error } = await this.db()
+      .from('project_invite')
+      .insert({
+        invite_id: row.inviteId,
+        project_id: row.projectId,
+        invited_by_user_id: row.invitedByUserId,
+        invite_type: row.inviteType,
+        role_to_grant: row.roleToGrant,
+        invitee_email: row.inviteeEmail ?? null,
+        invitee_user_id: row.inviteeUserId ?? null,
+        invite_code_hash: row.inviteCodeHash ?? null,
+        status: 'pending',
+        expires_at: row.expiresAt?.toISOString() ?? null,
+        created_at: now,
+        updated_at: now,
+      })
+      .select('*')
+      .single();
+    throwOnError('createProjectInvite', error);
+    return mapProjectInviteRow(data);
+  }
+
+  async getProjectInviteById(inviteId: string): Promise<ProjectInviteRow | null> {
+    this.logger.debug(`getProjectInviteById: ${inviteId}`);
+    const { data, error } = await this.db()
+      .from('project_invite')
+      .select('*')
+      .eq('invite_id', inviteId)
+      .maybeSingle();
+    throwOnError('getProjectInviteById', error);
+    return data ? mapProjectInviteRow(data) : null;
+  }
+
+  async getProjectInviteByCodeHash(codeHash: string): Promise<ProjectInviteRow | null> {
+    this.logger.debug('getProjectInviteByCodeHash');
+    const { data, error } = await this.db()
+      .from('project_invite')
+      .select('*')
+      .eq('invite_code_hash', codeHash)
+      .maybeSingle();
+    throwOnError('getProjectInviteByCodeHash', error);
+    return data ? mapProjectInviteRow(data) : null;
+  }
+
+  async listProjectInvites(
+    projectId: string,
+    opts: { type?: InviteType; status?: InviteStatus } = {},
+  ): Promise<ProjectInviteRow[]> {
+    this.logger.debug(`listProjectInvites: ${projectId}`);
+    let query = this.db()
+      .from('project_invite')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+
+    if (opts.type) query = query.eq('invite_type', opts.type);
+    if (opts.status) query = query.eq('status', opts.status);
+
+    const { data, error } = await query;
+    throwOnError('listProjectInvites', error);
+    return (data ?? []).map(mapProjectInviteRow);
+  }
+
+  async revokeProjectInvite(inviteId: string): Promise<ProjectInviteRow | null> {
+    this.logger.debug(`revokeProjectInvite: ${inviteId}`);
+    const now = new Date().toISOString();
+    const { data, error } = await this.db()
+      .from('project_invite')
+      .update({ status: 'revoked', revoked_at: now, updated_at: now })
+      .eq('invite_id', inviteId)
+      .eq('status', 'pending')
+      .select('*')
+      .maybeSingle();
+    throwOnError('revokeProjectInvite', error);
+    return data ? mapProjectInviteRow(data) : null;
+  }
+
+  /**
+   * Accept a project invite: marks it accepted and upserts the user as a project member.
+   * Returns null when the invite is missing, expired, revoked, or already accepted.
+   */
+  async acceptProjectInvite(
+    inviteId: string,
+    acceptingUserId: string,
+    opts?: { displayName?: string; color?: string },
+  ): Promise<{ invite: ProjectInviteRow; member: ProjectMemberRow } | null> {
+    this.logger.debug(`acceptProjectInvite: ${inviteId} by ${acceptingUserId}`);
+    const invite = await this.getProjectInviteById(inviteId);
+    if (!invite) return null;
+    if (invite.status !== 'pending') return null;
+    if (invite.expiresAt && invite.expiresAt <= new Date()) return null;
+
+    const now = new Date().toISOString();
+    const { data: updatedInvite, error: inviteError } = await this.db()
+      .from('project_invite')
+      .update({
+        status: 'accepted',
+        accepted_at: now,
+        accepted_by_user_id: acceptingUserId,
+        updated_at: now,
+      })
+      .eq('invite_id', inviteId)
+      .select('*')
+      .single();
+    throwOnError('acceptProjectInvite.invite', inviteError);
+
+    const member = await this.upsertProjectMember({
+      projectId: invite.projectId,
+      userId: acceptingUserId,
+      role: invite.roleToGrant,
+      addedByUserId: invite.invitedByUserId,
+      displayName: opts?.displayName,
+      color: opts?.color,
+    });
+
+    return { invite: mapProjectInviteRow(updatedInvite), member };
+  }
+
   // ─── Internal helpers ───────────────────────────────────────────────────────
 
   // ─── Provider OAuth Credentials (ciphertext at rest — use ProviderCredentialService) ─
@@ -886,7 +1022,7 @@ export class AppDataService {
     return this.supabase.getAdminClient();
   }
 
-  private async getProjectById(projectId: string): Promise<ProjectRow | null> {
+  async getProjectById(projectId: string): Promise<ProjectRow | null> {
     const { data, error } = await this.db()
       .from('project')
       .select('*')
@@ -1025,5 +1161,25 @@ function mapShareLinkRow(row: Record<string, unknown>): ShareLinkRow {
     revokedAt: row.revoked_at ? new Date(row.revoked_at as string) : undefined,
     consumedAt: row.consumed_at ? new Date(row.consumed_at as string) : undefined,
     createdAt: new Date(row.created_at as string),
+  };
+}
+
+function mapProjectInviteRow(row: Record<string, unknown>): ProjectInviteRow {
+  return {
+    inviteId: row.invite_id as string,
+    projectId: row.project_id as string,
+    invitedByUserId: row.invited_by_user_id as string,
+    inviteType: row.invite_type as InviteType,
+    roleToGrant: row.role_to_grant as ProjectMemberRole,
+    inviteeEmail: (row.invitee_email as string | null) ?? undefined,
+    inviteeUserId: (row.invitee_user_id as string | null) ?? undefined,
+    inviteCodeHash: (row.invite_code_hash as string | null) ?? undefined,
+    status: row.status as InviteStatus,
+    expiresAt: row.expires_at ? new Date(row.expires_at as string) : undefined,
+    acceptedAt: row.accepted_at ? new Date(row.accepted_at as string) : undefined,
+    revokedAt: row.revoked_at ? new Date(row.revoked_at as string) : undefined,
+    acceptedByUserId: (row.accepted_by_user_id as string | null) ?? undefined,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
   };
 }

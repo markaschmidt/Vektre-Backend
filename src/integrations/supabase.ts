@@ -120,6 +120,42 @@ export class SupabaseService {
   }
 
   /**
+   * Look up a Supabase auth user ID by their email address.
+   * Uses a SECURITY DEFINER Postgres function so the service role can
+   * query auth.users without exposing the schema directly.
+   * Returns null when no user with that email exists.
+   */
+  async getUserIdByEmail(email: string): Promise<string | null> {
+    const { data, error } = await this.client.rpc('find_user_id_by_email', {
+      lookup_email: email.trim().toLowerCase(),
+    });
+    if (error) {
+      this.logger.warn(`getUserIdByEmail failed for ${email}: ${error.message}`);
+      return null;
+    }
+    return (data as string | null) ?? null;
+  }
+
+  /**
+   * Resolve auth emails for a set of user IDs (e.g. project member directory).
+   */
+  async getUserEmailsByIds(userIds: string[]): Promise<Map<string, string>> {
+    const uniqueIds = [...new Set(userIds.filter(Boolean))];
+    const emails = new Map<string, string>();
+
+    await Promise.all(
+      uniqueIds.map(async (userId) => {
+        const user = await this.getUserById(userId);
+        if (user?.email) {
+          emails.set(userId, user.email);
+        }
+      }),
+    );
+
+    return emails;
+  }
+
+  /**
    * Service-role Supabase client for Postgres and Storage orchestration.
    * Never expose this client or the service-role key to HTTP callers.
    */

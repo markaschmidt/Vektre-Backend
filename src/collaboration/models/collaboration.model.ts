@@ -21,6 +21,8 @@ export interface MemberResponse {
   userId: string;
   role: ProjectMemberRole;
   displayName?: string;
+  avatarUrl?: string;
+  email?: string;
   color?: string;
   addedByUserId: string;
   createdAt: string;

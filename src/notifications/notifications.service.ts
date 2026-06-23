@@ -117,6 +117,53 @@ export class NotificationsService {
     });
   }
 
+  /**
+   * Notify a user that they have been invited to a project by email.
+   * Only fires when the invitee already has a Vektre account (userId is known).
+   */
+  async notifyInviteReceived(input: {
+    projectId: string;
+    projectName: string;
+    inviteId: string;
+    inviteeUserId: string;
+    actorUserId: string;
+    role: ProjectMemberRole;
+  }): Promise<void> {
+    if (input.inviteeUserId === input.actorUserId) return;
+    await this.notifications.create({
+      userId: input.inviteeUserId,
+      actorUserId: input.actorUserId,
+      projectId: input.projectId,
+      type: 'invite_received',
+      title: `You've been invited to ${input.projectName}`,
+      body: `You have been invited as ${input.role}. Open the app to accept or decline.`,
+      metadata: { inviteId: input.inviteId, role: input.role },
+    });
+  }
+
+  /**
+   * Notify the inviter when someone accepts their code invite.
+   */
+  async notifyInviteAccepted(input: {
+    projectId: string;
+    projectName: string;
+    inviteId: string;
+    inviterUserId: string;
+    acceptedByUserId: string;
+    role: ProjectMemberRole;
+  }): Promise<void> {
+    if (input.inviterUserId === input.acceptedByUserId) return;
+    await this.notifications.create({
+      userId: input.inviterUserId,
+      actorUserId: input.acceptedByUserId,
+      projectId: input.projectId,
+      type: 'invite_accepted',
+      title: `Someone joined ${input.projectName}`,
+      body: `A new member joined as ${input.role} via your invite.`,
+      metadata: { inviteId: input.inviteId, role: input.role },
+    });
+  }
+
   async notifyCommentMention(input: CommentNotificationInput): Promise<void> {
     if (input.recipientUserId === input.authorUserId) return;
     await this.createCommentNotification('comment_mention', input);

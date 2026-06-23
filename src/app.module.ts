@@ -15,6 +15,7 @@ import { integrationCryptoConfig } from './config/integration-crypto.config.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { CollaborationModule } from './collaboration/collaboration.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { InvitesModule } from './invites/invites.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
     ProjectsModule,
     CollaborationModule,
     NotificationsModule,
+    InvitesModule,
     GoogleDriveModule,
     NotionModule,
     ObsidianModule,

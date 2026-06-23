@@ -11,7 +11,11 @@ export type NotificationType =
   | 'project_role_demoted'
   | 'project_role_changed'
   | 'comment_mention'
-  | 'comment_reply';
+  | 'comment_reply'
+  /** Sent to a specific user when invited by email */
+  | 'invite_received'
+  /** Sent to the inviter when someone accepts their code invite */
+  | 'invite_accepted';
 
 export type NotificationStatusFilter = 'all' | 'unread';
 

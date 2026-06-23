@@ -140,6 +140,31 @@ export interface ShareLinkRow {
   createdAt: Date;
 }
 
+export type InviteType = 'email' | 'code';
+export type InviteStatus = 'pending' | 'accepted' | 'revoked';
+
+export interface ProjectInviteRow {
+  inviteId: string;
+  projectId: string;
+  invitedByUserId: string;
+  inviteType: InviteType;
+  roleToGrant: ProjectMemberRole;
+  /** Set for type='email' invites */
+  inviteeEmail?: string;
+  /** Resolved at accept time when the invitee has a Vektre account */
+  inviteeUserId?: string;
+  /** SHA-256 hash of the plaintext code (type='code' only) */
+  inviteCodeHash?: string;
+  status: InviteStatus;
+  /** NULL = no expiry (typical for email invites) */
+  expiresAt?: Date;
+  acceptedAt?: Date;
+  revokedAt?: Date;
+  acceptedByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ProviderCredentialRow {
   userId: string;
   provider: string;
