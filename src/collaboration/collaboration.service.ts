@@ -220,6 +220,36 @@ export class CollaborationService {
     this.logger.log(`Removed member ${targetUserId} from project ${projectId}`);
   }
 
+  async leaveProject(projectId: string, userId: string): Promise<void> {
+    const member = await this.assertMembership(projectId, userId, 'viewer');
+
+    if (member.role === 'owner') {
+      throw new ForbiddenException(
+        'Project owners cannot leave. Transfer ownership or delete the project instead.',
+      );
+    }
+
+    const project = await this.appData.getProjectById(projectId);
+    if (!project || project.status === 'deleted') {
+      throw new NotFoundException('Project not found');
+    }
+
+    const removed = await this.appData.removeProjectMember(projectId, userId);
+    if (!removed) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    await this.notifications.notifyProjectMemberLeft({
+      projectId,
+      projectName: project.name,
+      ownerUserId: project.ownerUserId,
+      actorUserId: userId,
+      previousRole: member.role,
+    });
+
+    this.logger.log(`User ${userId} left project ${projectId}`);
+  }
+
   // ─── Internal helpers ─────────────────────────────────────────────────────
 
   private async enrichMembers(members: ProjectMemberRow[]): Promise<MemberResponse[]> {

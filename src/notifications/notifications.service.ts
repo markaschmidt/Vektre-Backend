@@ -96,6 +96,25 @@ export class NotificationsService {
     });
   }
 
+  async notifyProjectMemberLeft(input: {
+    projectId: string;
+    projectName: string;
+    ownerUserId: string;
+    actorUserId: string;
+    previousRole: ProjectMemberRole;
+  }): Promise<void> {
+    if (input.ownerUserId === input.actorUserId) return;
+    await this.notifications.create({
+      userId: input.ownerUserId,
+      actorUserId: input.actorUserId,
+      projectId: input.projectId,
+      type: 'project_member_left',
+      title: `Someone left ${input.projectName}`,
+      body: `A member left the project (was ${input.previousRole}).`,
+      metadata: { previousRole: input.previousRole },
+    });
+  }
+
   async notifyProjectRoleChange(
     input: ProjectRoleChangeNotificationInput,
   ): Promise<void> {

@@ -15,7 +15,9 @@ export type NotificationType =
   /** Sent to a specific user when invited by email */
   | 'invite_received'
   /** Sent to the inviter when someone accepts their code invite */
-  | 'invite_accepted';
+  | 'invite_accepted'
+  /** Sent to the project owner when a member leaves voluntarily */
+  | 'project_member_left';
 
 export type NotificationStatusFilter = 'all' | 'unread';
 

@@ -114,6 +114,19 @@ export class CollaborationController {
   }
 
   /**
+   * Voluntarily leave a project.
+   * Requires any active membership (viewer+). Owners cannot leave.
+   */
+  @Post('projects/:projectId/leave')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async leaveProject(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.collaboration.leaveProject(projectId, user.id);
+  }
+
+  /**
    * Remove a member from a project.
    * Requires editor+ role; only owner can remove other owners.
    */
