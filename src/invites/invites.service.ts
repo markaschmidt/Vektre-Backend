@@ -27,6 +27,8 @@ import type { CreateEmailInviteDto } from './dto/create-email-invite.dto.js';
 import type { CreateInviteCodeDto } from './dto/create-invite-code.dto.js';
 import type { JoinByCodeDto } from './dto/join-by-code.dto.js';
 import type { AcceptInviteDto } from './dto/accept-invite.dto.js';
+import { requireProjectAccess } from '../projects/project-access.js';
+import { throwProjectAccessDenied } from '../projects/project-access.exceptions.js';
 
 /** Default TTL for code-based invites: 24 hours */
 const CODE_INVITE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -65,8 +67,7 @@ export class InvitesService {
   ): Promise<CreateEmailInviteResponse> {
     await this.assertMembership(projectId, actorUserId, 'editor');
 
-    const project = await this.appData.getProjectForUser(actorUserId, projectId);
-    if (!project) throw new NotFoundException('Project not found');
+    const project = await requireProjectAccess(this.appData, actorUserId, projectId);
 
     const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : undefined;
     if (expiresAt && expiresAt <= new Date()) {
@@ -307,9 +308,33 @@ export class InvitesService {
     userId: string,
     minimumRole: ProjectMemberRole,
   ) {
+    const access = await this.appData.resolveProjectAccessForUser(userId, projectId);
+    if (!access.ok) throwProjectAccessDenied(access.reason);
+
+    const project = access.project;
+    if (project.ownerUserId === userId) {
+      if (!hasPermission('owner', minimumRole)) {
+        throw new ForbiddenException(
+          `Insufficient permissions. Required: ${minimumRole}, your role: owner`,
+        );
+      }
+      const member = await this.appData.getProjectMembership(projectId, userId);
+      if (member?.status === 'active') return member;
+      return {
+        membershipId: `${projectId}:${userId}`,
+        projectId,
+        userId,
+        role: 'owner' as const,
+        status: 'active' as const,
+        addedByUserId: userId,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+      };
+    }
+
     const member = await this.appData.getProjectMembership(projectId, userId);
-    if (!member || member.status === 'removed') {
-      throw new ForbiddenException('You are not a member of this project');
+    if (!member || member.status !== 'active') {
+      throwProjectAccessDenied('removed');
     }
     if (!hasPermission(member.role, minimumRole)) {
       throw new ForbiddenException(

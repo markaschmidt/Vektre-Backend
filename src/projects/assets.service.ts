@@ -2,11 +2,11 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { SupabaseService } from '../integrations/supabase.js';
+import { requireProjectAccess } from './project-access.js';
 import type {
   UploadProjectAssetDto,
   UploadProjectAssetChunkDto,
@@ -293,10 +293,7 @@ export class AssetsService {
   }
 
   private async assertProjectAccess(userId: string, projectId: string): Promise<void> {
-    const project = await this.appData.getProjectForUser(userId, projectId);
-    if (!project) {
-      throw new ForbiddenException('Project not found or access denied');
-    }
+    await requireProjectAccess(this.appData, userId, projectId);
   }
 }
 

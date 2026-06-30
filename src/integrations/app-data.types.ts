@@ -70,6 +70,13 @@ export type ProjectWorkspaceMode = 'solo' | 'collaborative';
 export type ProjectStatus = 'active' | 'archived' | 'deleted';
 export type ProjectMemberRole = 'owner' | 'editor' | 'commenter' | 'viewer';
 export type ProjectMemberStatus = 'active' | 'removed';
+
+/** Why a user cannot access a project (for client-facing errors). */
+export type ProjectAccessDenialReason = 'not_found' | 'removed' | 'deleted';
+
+export type ProjectAccessResult =
+  | { ok: true; project: ProjectRow }
+  | { ok: false; reason: ProjectAccessDenialReason };
 export type ProjectAssetStatus =
   | 'generating'
   | 'ready'

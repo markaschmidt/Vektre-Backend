@@ -7,7 +7,12 @@ import type {
   CommentNotificationInput,
   NotificationResponse,
   NotificationType,
+  ProjectAccessLossReason,
   ProjectRoleChangeNotificationInput,
+} from './models/notification.model.js';
+import {
+  notificationTypeForAccessLoss,
+  projectAccessLossMetadata,
 } from './models/notification.model.js';
 import {
   toNotificationActorSummary,
@@ -84,15 +89,9 @@ export class NotificationsService {
     actorUserId: string;
     previousRole?: ProjectMemberRole;
   }): Promise<void> {
-    if (input.userId === input.actorUserId) return;
-    await this.notifications.create({
-      userId: input.userId,
-      actorUserId: input.actorUserId,
-      projectId: input.projectId,
-      type: 'project_removed',
-      title: `You were removed from ${input.projectName}`,
-      body: 'You no longer have access to this project.',
-      metadata: { previousRole: input.previousRole },
+    await this.notifyProjectAccessLost({
+      ...input,
+      reason: 'removed',
     });
   }
 
@@ -112,6 +111,63 @@ export class NotificationsService {
       title: `Someone left ${input.projectName}`,
       body: `A member left the project (was ${input.previousRole}).`,
       metadata: { previousRole: input.previousRole },
+    });
+  }
+
+  /**
+   * Notify every former member that the project was deleted.
+   * Notifications are persisted in Postgres and delivered on next login.
+   */
+  async notifyProjectDeleted(input: {
+    projectId: string;
+    projectName: string;
+    actorUserId: string;
+    members: Array<{ userId: string; role: ProjectMemberRole }>;
+  }): Promise<void> {
+    const recipients = input.members.filter((m) => m.userId !== input.actorUserId);
+    if (recipients.length === 0) return;
+
+    await Promise.all(
+      recipients.map((member) =>
+        this.notifyProjectAccessLost({
+          projectId: input.projectId,
+          projectName: input.projectName,
+          userId: member.userId,
+          actorUserId: input.actorUserId,
+          reason: 'deleted',
+          previousRole: member.role,
+        }),
+      ),
+    );
+  }
+
+  /**
+   * Persist an access-loss notification for a single user. Fires when a member is
+   * removed or when the owner deletes the project. Delivered via GET /notifications
+   * even if the user is offline at the time of the event.
+   */
+  async notifyProjectAccessLost(input: {
+    projectId: string;
+    projectName: string;
+    userId: string;
+    actorUserId: string;
+    reason: ProjectAccessLossReason;
+    previousRole?: ProjectMemberRole;
+  }): Promise<void> {
+    if (input.userId === input.actorUserId) return;
+
+    const copy = ACCESS_LOSS_COPY[input.reason];
+    await this.notifications.create({
+      userId: input.userId,
+      actorUserId: input.actorUserId,
+      projectId: input.projectId,
+      type: notificationTypeForAccessLoss(input.reason),
+      title: copy.title(input.projectName),
+      body: copy.body,
+      metadata: projectAccessLossMetadata({
+        reason: input.reason,
+        previousRole: input.previousRole,
+      }),
     });
   }
 
@@ -263,3 +319,17 @@ function excerpt(body: string): string {
   if (normalized.length <= 240) return normalized;
   return `${normalized.slice(0, 237)}...`;
 }
+
+const ACCESS_LOSS_COPY: Record<
+  ProjectAccessLossReason,
+  { title: (projectName: string) => string; body: string }
+> = {
+  removed: {
+    title: (projectName) => `You were removed from ${projectName}`,
+    body: 'You no longer have access to this project.',
+  },
+  deleted: {
+    title: (projectName) => `${projectName} was deleted`,
+    body: 'This project is no longer available.',
+  },
+};

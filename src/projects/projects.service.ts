@@ -23,6 +23,7 @@ import { bullJobId } from '../queues/bull-job-id.js';
 import { defaultJobOptions } from '../queues/job-options.js';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { CollaborationService } from '../collaboration/collaboration.service.js';
+import { requireProjectAccess } from './project-access.js';
 import type {
   ProjectMemberRole,
   ProjectWorkspaceMode,
@@ -69,9 +70,7 @@ export class ProjectsService {
   }
 
   async getProject(userId: string, projectId: string) {
-    const project = await this.appData.getProjectForUser(userId, projectId);
-    if (!project) throw new NotFoundException('Project not found');
-    return project;
+    return requireProjectAccess(this.appData, userId, projectId);
   }
 
   async createProject(
@@ -169,7 +168,7 @@ export class ProjectsService {
     userId: string,
     projectId: string,
   ): Promise<QueuedProjectOperation> {
-    await this.assertCanManageProject(userId, projectId);
+    await this.assertProjectOwner(userId, projectId);
     const requestId = randomUUID();
     const payload: DeleteProjectJob = { requestId, actorUserId: userId, projectId };
 
@@ -379,16 +378,14 @@ export class ProjectsService {
     userId: string,
     projectId: string,
   ): Promise<void> {
-    const project = await this.appData.getProjectForUser(userId, projectId);
-    if (!project) throw new NotFoundException('Project not found');
+    await requireProjectAccess(this.appData, userId, projectId);
   }
 
   private async assertCanEditProject(
     userId: string,
     projectId: string,
   ): Promise<void> {
-    const project = await this.appData.getProjectForUser(userId, projectId);
-    if (!project) throw new NotFoundException('Project not found');
+    const project = await requireProjectAccess(this.appData, userId, projectId);
     if (project.ownerUserId === userId) return;
 
     const member = await this.appData.getProjectMembership(projectId, userId);
@@ -403,14 +400,21 @@ export class ProjectsService {
     userId: string,
     projectId: string,
   ): Promise<void> {
-    const project = await this.appData.getProjectForUser(userId, projectId);
-    if (!project) throw new NotFoundException('Project not found');
+    const project = await requireProjectAccess(this.appData, userId, projectId);
     if (project.ownerUserId === userId) return;
 
     const member = await this.appData.getProjectMembership(projectId, userId);
     if (member?.status === 'active' && member.role === 'owner') return;
 
     throw new ForbiddenException('Project owner access required');
+  }
+
+  /** Only the project owner (project.owner_user_id) may delete the project. */
+  private async assertProjectOwner(userId: string, projectId: string): Promise<void> {
+    const project = await requireProjectAccess(this.appData, userId, projectId);
+    if (project.ownerUserId !== userId) {
+      throw new ForbiddenException('Only the project owner can delete this project');
+    }
   }
 
   private normalizeWorkspaceMode(

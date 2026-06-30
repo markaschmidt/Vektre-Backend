@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SupabaseService } from './supabase.js';
 import type {
+  ProjectAccessResult,
   ProjectAssetRow,
   ProjectAssetStatus,
   ProjectMemberRole,
@@ -337,13 +338,32 @@ export class AppDataService {
     userId: string,
     projectId: string,
   ): Promise<ProjectRow | null> {
-    this.logger.debug(`getProjectForUser: ${userId} / ${projectId}`);
+    const result = await this.resolveProjectAccessForUser(userId, projectId);
+    return result.ok ? result.project : null;
+  }
+
+  async resolveProjectAccessForUser(
+    userId: string,
+    projectId: string,
+  ): Promise<ProjectAccessResult> {
+    this.logger.debug(`resolveProjectAccessForUser: ${userId} / ${projectId}`);
     const project = await this.getProjectById(projectId);
-    if (!project || project.status === 'deleted') return null;
-    if (project.ownerUserId === userId) return project;
+    if (!project) return { ok: false, reason: 'not_found' };
 
     const member = await this.getProjectMembership(projectId, userId);
-    return member?.status === 'active' ? project : null;
+    const wasAssociated = project.ownerUserId === userId || member !== null;
+
+    if (project.status === 'deleted') {
+      return wasAssociated
+        ? { ok: false, reason: 'deleted' }
+        : { ok: false, reason: 'not_found' };
+    }
+
+    if (project.ownerUserId === userId) return { ok: true, project };
+    if (member?.status === 'active') return { ok: true, project };
+    if (member?.status === 'removed') return { ok: false, reason: 'removed' };
+
+    return { ok: false, reason: 'not_found' };
   }
 
   async getProjectMembership(
@@ -420,6 +440,16 @@ export class AppDataService {
       .maybeSingle();
     throwOnError('removeProjectMember', error);
     return data ? mapProjectMemberRow(data) : null;
+  }
+
+  async removeAllProjectMembers(projectId: string): Promise<void> {
+    this.logger.debug(`removeAllProjectMembers: ${projectId}`);
+    const { error } = await this.db()
+      .from('project_member')
+      .update({ status: 'removed', updated_at: new Date().toISOString() })
+      .eq('project_id', projectId)
+      .eq('status', 'active');
+    throwOnError('removeAllProjectMembers', error);
   }
 
   async changeMemberRole(

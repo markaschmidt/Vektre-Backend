@@ -72,6 +72,7 @@ export class ProjectsController {
     return this.projectsService.archiveProject(user.id, projectId);
   }
 
+  /** Soft-delete a project. Requires the authenticated user to be the project owner. */
   @Delete(':projectId')
   @HttpCode(HttpStatus.ACCEPTED)
   deleteProject(

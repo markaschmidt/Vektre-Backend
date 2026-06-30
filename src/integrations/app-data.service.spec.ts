@@ -211,4 +211,72 @@ describe('AppDataService', () => {
     expect(result?.link.useCount).toBe(1);
     expect(membershipLookup.upsert).toHaveBeenCalled();
   });
+
+  it('returns deleted when a former member accesses a deleted project', async () => {
+    const projectChain = createChain({
+      data: {
+        project_id: 'proj-1',
+        owner_user_id: 'owner-1',
+        name: 'Demo',
+        workspace_mode: 'collaborative',
+        status: 'deleted',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      error: null,
+    });
+    const memberChain = createChain({
+      data: {
+        membership_id: 'proj-1:user-2',
+        project_id: 'proj-1',
+        user_id: 'user-2',
+        role: 'editor',
+        status: 'removed',
+        added_by_user_id: 'owner-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      error: null,
+    });
+    fromMock.mockImplementation((table: string) =>
+      table === 'project' ? projectChain : memberChain,
+    );
+
+    const result = await service.resolveProjectAccessForUser('user-2', 'proj-1');
+    expect(result).toEqual({ ok: false, reason: 'deleted' });
+  });
+
+  it('returns removed when membership was revoked on an active project', async () => {
+    const projectChain = createChain({
+      data: {
+        project_id: 'proj-1',
+        owner_user_id: 'owner-1',
+        name: 'Demo',
+        workspace_mode: 'collaborative',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      error: null,
+    });
+    const memberChain = createChain({
+      data: {
+        membership_id: 'proj-1:user-2',
+        project_id: 'proj-1',
+        user_id: 'user-2',
+        role: 'viewer',
+        status: 'removed',
+        added_by_user_id: 'owner-1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      error: null,
+    });
+    fromMock.mockImplementation((table: string) =>
+      table === 'project' ? projectChain : memberChain,
+    );
+
+    const result = await service.resolveProjectAccessForUser('user-2', 'proj-1');
+    expect(result).toEqual({ ok: false, reason: 'removed' });
+  });
 });

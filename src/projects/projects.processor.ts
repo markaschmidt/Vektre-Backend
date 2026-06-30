@@ -114,7 +114,23 @@ export class ProjectsProcessor extends WorkerHost {
   }
 
   private async handleDelete(job: DeleteProjectJob): Promise<void> {
+    const project = await this.appData.getProjectById(job.projectId);
+    if (!project || project.status === 'deleted') return;
+
+    const members = await this.appData.listProjectMembers(job.projectId);
+
+    await this.appData.removeAllProjectMembers(job.projectId);
     await this.appData.setProjectStatus(job.projectId, 'deleted');
+
+    await this.notifications.notifyProjectDeleted({
+      projectId: job.projectId,
+      projectName: project.name,
+      actorUserId: job.actorUserId,
+      members: members.map((member) => ({
+        userId: member.userId,
+        role: member.role,
+      })),
+    });
   }
 
   private async handleMemberUpsert(job: UpsertProjectMemberJob): Promise<void> {

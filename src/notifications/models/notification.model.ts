@@ -17,9 +17,60 @@ export type NotificationType =
   /** Sent to the inviter when someone accepts their code invite */
   | 'invite_accepted'
   /** Sent to the project owner when a member leaves voluntarily */
-  | 'project_member_left';
+  | 'project_member_left'
+  /** Sent to all members when the project owner deletes the project */
+  | 'project_deleted';
 
 export type NotificationStatusFilter = 'all' | 'unread';
+
+/**
+ * Why a user lost access to a project. Shared by in-app notifications and API errors
+ * so the client can handle both `GET /notifications` and failed project requests
+ * with the same branching logic.
+ */
+export type ProjectAccessLossReason = 'removed' | 'deleted';
+
+export const PROJECT_ACCESS_LOSS_ERROR_CODES = {
+  removed: 'PROJECT_ACCESS_REVOKED',
+  deleted: 'PROJECT_DELETED',
+} as const satisfies Record<ProjectAccessLossReason, string>;
+
+export const PROJECT_ACCESS_LOSS_NOTIFICATION_TYPES: Record<
+  ProjectAccessLossReason,
+  NotificationType
+> = {
+  removed: 'project_removed',
+  deleted: 'project_deleted',
+};
+
+export function notificationTypeForAccessLoss(
+  reason: ProjectAccessLossReason,
+): NotificationType {
+  return PROJECT_ACCESS_LOSS_NOTIFICATION_TYPES[reason];
+}
+
+export function accessLossReasonFromNotification(
+  type: NotificationType,
+): ProjectAccessLossReason | null {
+  switch (type) {
+    case 'project_removed':
+      return 'removed';
+    case 'project_deleted':
+      return 'deleted';
+    default:
+      return null;
+  }
+}
+
+export function projectAccessLossMetadata(input: {
+  reason: ProjectAccessLossReason;
+  previousRole?: ProjectMemberRole;
+}): Record<string, unknown> {
+  return {
+    reason: input.reason,
+    ...(input.previousRole ? { previousRole: input.previousRole } : {}),
+  };
+}
 
 export type CommentNotificationTargetType = 'project' | 'asset' | 'document';
 

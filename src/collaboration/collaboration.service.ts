@@ -25,6 +25,7 @@ import {
   type AcceptShareLinkResponse,
 } from './models/collaboration.model.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { throwProjectAccessDenied } from '../projects/project-access.exceptions.js';
 
 @Injectable()
 export class CollaborationService {
@@ -285,9 +286,33 @@ export class CollaborationService {
     userId: string,
     minimumRole: ProjectMemberRole,
   ): Promise<ProjectMemberRow> {
+    const access = await this.appData.resolveProjectAccessForUser(userId, projectId);
+    if (!access.ok) throwProjectAccessDenied(access.reason);
+
+    const project = access.project;
+    if (project.ownerUserId === userId) {
+      if (!hasPermission('owner', minimumRole)) {
+        throw new ForbiddenException(
+          `Insufficient permissions. Required: ${minimumRole}, your role: owner`,
+        );
+      }
+      const member = await this.appData.getProjectMembership(projectId, userId);
+      if (member?.status === 'active') return member;
+      return {
+        membershipId: `${projectId}:${userId}`,
+        projectId,
+        userId,
+        role: 'owner',
+        status: 'active',
+        addedByUserId: userId,
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
+      };
+    }
+
     const member = await this.appData.getProjectMembership(projectId, userId);
-    if (!member || member.status === 'removed') {
-      throw new ForbiddenException('You are not a member of this project');
+    if (!member || member.status !== 'active') {
+      throwProjectAccessDenied('removed');
     }
     if (!hasPermission(member.role, minimumRole)) {
       throw new ForbiddenException(

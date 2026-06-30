@@ -79,6 +79,57 @@ describe('NotificationsService', () => {
     expect(repository.create).not.toHaveBeenCalled();
   });
 
+  it('notifies every member except the deleter when a project is deleted', async () => {
+    repository.create.mockResolvedValue({});
+
+    await service.notifyProjectDeleted({
+      projectId: 'proj-1',
+      projectName: 'Adventure',
+      actorUserId: 'owner-1',
+      members: [
+        { userId: 'owner-1', role: 'owner' },
+        { userId: 'editor-1', role: 'editor' },
+        { userId: 'viewer-1', role: 'viewer' },
+      ],
+    });
+
+    expect(repository.create).toHaveBeenCalledTimes(2);
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'editor-1',
+        type: 'project_deleted',
+        title: 'Adventure was deleted',
+        metadata: { reason: 'deleted', previousRole: 'editor' },
+      }),
+    );
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'viewer-1',
+        type: 'project_deleted',
+        metadata: { reason: 'deleted', previousRole: 'viewer' },
+      }),
+    );
+  });
+
+  it('creates removed access-loss notifications with shared metadata', async () => {
+    repository.create.mockResolvedValue({});
+
+    await service.notifyProjectRemoval({
+      projectId: 'proj-1',
+      projectName: 'Adventure',
+      userId: 'user-2',
+      actorUserId: 'owner-1',
+      previousRole: 'viewer',
+    });
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'project_removed',
+        metadata: { reason: 'removed', previousRole: 'viewer' },
+      }),
+    );
+  });
+
   it('throws not found when marking a missing notification read', async () => {
     repository.markRead.mockResolvedValue(null);
 
