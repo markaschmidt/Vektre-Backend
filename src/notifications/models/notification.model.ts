@@ -18,6 +18,8 @@ export type NotificationType =
   | 'invite_accepted'
   /** Sent to the project owner when a member leaves voluntarily */
   | 'project_member_left'
+  /** Sent to owners and editors when someone joins the project */
+  | 'project_member_joined'
   /** Sent to all members when the project owner deletes the project */
   | 'project_deleted';
 
@@ -70,6 +72,33 @@ export function projectAccessLossMetadata(input: {
     reason: input.reason,
     ...(input.previousRole ? { previousRole: input.previousRole } : {}),
   };
+}
+
+/** Roles that receive in-app notification when someone joins a project. */
+export const PROJECT_MEMBER_JOIN_NOTIFY_ROLES: readonly ProjectMemberRole[] = [
+  'owner',
+  'editor',
+];
+
+export function projectMemberJoinNotifyRecipientIds(input: {
+  ownerUserId: string;
+  members: Array<{ userId: string; role: ProjectMemberRole }>;
+  joinedUserId: string;
+}): string[] {
+  const recipientIds = new Set<string>();
+
+  for (const member of input.members) {
+    if (member.userId === input.joinedUserId) continue;
+    if (PROJECT_MEMBER_JOIN_NOTIFY_ROLES.includes(member.role)) {
+      recipientIds.add(member.userId);
+    }
+  }
+
+  if (input.ownerUserId !== input.joinedUserId) {
+    recipientIds.add(input.ownerUserId);
+  }
+
+  return [...recipientIds];
 }
 
 export type CommentNotificationTargetType = 'project' | 'asset' | 'document';

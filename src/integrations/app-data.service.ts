@@ -380,6 +380,26 @@ export class AppDataService {
     return data ? mapProjectMemberRow(data) : null;
   }
 
+  /** Accepts either a userId or a composite membershipId (`projectId:userId`). */
+  async getProjectMembershipByRef(
+    projectId: string,
+    memberRef: string,
+  ): Promise<ProjectMemberRow | null> {
+    const trimmed = memberRef.trim();
+    if (trimmed.includes(':')) {
+      this.logger.debug(`getProjectMembershipByRef: ${projectId} / ${trimmed}`);
+      const { data, error } = await this.db()
+        .from('project_member')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('membership_id', trimmed)
+        .maybeSingle();
+      throwOnError('getProjectMembershipByRef', error);
+      return data ? mapProjectMemberRow(data) : null;
+    }
+    return this.getProjectMembership(projectId, trimmed);
+  }
+
   async listProjectMembers(projectId: string): Promise<ProjectMemberRow[]> {
     this.logger.debug(`listProjectMembers: ${projectId}`);
     const { data, error } = await this.db()

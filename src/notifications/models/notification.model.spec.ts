@@ -2,6 +2,7 @@ import {
   accessLossReasonFromNotification,
   notificationTypeForAccessLoss,
   projectAccessLossMetadata,
+  projectMemberJoinNotifyRecipientIds,
   PROJECT_ACCESS_LOSS_ERROR_CODES,
   PROJECT_ACCESS_LOSS_NOTIFICATION_TYPES,
 } from './notification.model.js';
@@ -27,5 +28,32 @@ describe('project access loss notification helpers', () => {
       reason: 'removed',
       previousRole: 'editor',
     });
+  });
+});
+
+describe('projectMemberJoinNotifyRecipientIds', () => {
+  it('notifies owners and editors but not viewers or the joiner', () => {
+    expect(
+      projectMemberJoinNotifyRecipientIds({
+        ownerUserId: 'owner-1',
+        joinedUserId: 'new-user',
+        members: [
+          { userId: 'owner-1', role: 'owner' },
+          { userId: 'editor-1', role: 'editor' },
+          { userId: 'viewer-1', role: 'viewer' },
+          { userId: 'new-user', role: 'viewer' },
+        ],
+      }),
+    ).toEqual(expect.arrayContaining(['owner-1', 'editor-1']));
+  });
+
+  it('always includes the project owner even without a member row', () => {
+    expect(
+      projectMemberJoinNotifyRecipientIds({
+        ownerUserId: 'owner-1',
+        joinedUserId: 'new-user',
+        members: [{ userId: 'new-user', role: 'editor' }],
+      }),
+    ).toEqual(['owner-1']);
   });
 });

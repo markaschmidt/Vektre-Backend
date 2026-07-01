@@ -23,6 +23,7 @@ import { bullJobId } from '../queues/bull-job-id.js';
 import { defaultJobOptions } from '../queues/job-options.js';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { CollaborationService } from '../collaboration/collaboration.service.js';
+import { resolveMemberUserId } from '../collaboration/member-ref.js';
 import { requireProjectAccess } from './project-access.js';
 import type {
   ProjectMemberRole,
@@ -222,10 +223,11 @@ export class ProjectsService {
   async updateMember(
     userId: string,
     projectId: string,
-    memberUserId: string,
+    memberRef: string,
     dto: UpdateProjectMemberDto,
   ): Promise<QueuedProjectOperation> {
     await this.assertCanManageProject(userId, projectId);
+    const memberUserId = resolveMemberUserId(projectId, memberRef);
     this.assertUserId(memberUserId);
     const role = this.normalizeRole(dto.role);
     if (role === 'owner') {
@@ -255,9 +257,10 @@ export class ProjectsService {
   async removeMember(
     userId: string,
     projectId: string,
-    memberUserId: string,
+    memberRef: string,
   ): Promise<QueuedProjectOperation> {
     await this.assertCanManageProject(userId, projectId);
+    const memberUserId = resolveMemberUserId(projectId, memberRef);
     this.assertUserId(memberUserId);
     const project = await this.appData.getProjectForUser(userId, projectId);
     if (project?.ownerUserId === memberUserId) {

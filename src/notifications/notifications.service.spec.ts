@@ -13,6 +13,8 @@ const repository = {
 
 const appData = {
   getUserProfilesByIds: jest.fn(),
+  getProjectById: jest.fn(),
+  listProjectMembers: jest.fn(),
 };
 
 describe('NotificationsService', () => {
@@ -126,6 +128,45 @@ describe('NotificationsService', () => {
       expect.objectContaining({
         type: 'project_removed',
         metadata: { reason: 'removed', previousRole: 'viewer' },
+      }),
+    );
+  });
+
+  it('notifies owners and editors when someone joins a project', async () => {
+    repository.create.mockResolvedValue({});
+    appData.getProjectById.mockResolvedValue({
+      projectId: 'proj-1',
+      name: 'Adventure',
+      ownerUserId: 'owner-1',
+    });
+    appData.listProjectMembers.mockResolvedValue([
+      { userId: 'owner-1', role: 'owner' },
+      { userId: 'editor-1', role: 'editor' },
+      { userId: 'viewer-1', role: 'viewer' },
+      { userId: 'new-user', role: 'viewer' },
+    ]);
+
+    await service.notifyProjectMemberJoined({
+      projectId: 'proj-1',
+      projectName: 'Adventure',
+      joinedUserId: 'new-user',
+      role: 'viewer',
+      inviteId: 'inv_123',
+    });
+
+    expect(repository.create).toHaveBeenCalledTimes(2);
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'owner-1',
+        actorUserId: 'new-user',
+        type: 'project_member_joined',
+        metadata: { role: 'viewer', inviteId: 'inv_123' },
+      }),
+    );
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'editor-1',
+        type: 'project_member_joined',
       }),
     );
   });

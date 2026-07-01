@@ -26,6 +26,7 @@ import {
 } from './models/collaboration.model.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { throwProjectAccessDenied } from '../projects/project-access.exceptions.js';
+import { resolveMemberUserId } from './member-ref.js';
 
 @Injectable()
 export class CollaborationService {
@@ -101,6 +102,16 @@ export class CollaborationService {
       `Share link consumed by ${consumingUserId} → project ${result.link.projectId} as ${result.link.roleToGrant}`,
     );
 
+    const project = await this.appData.getProjectById(result.link.projectId);
+    if (project) {
+      await this.notifications.notifyProjectMemberJoined({
+        projectId: result.link.projectId,
+        projectName: project.name,
+        joinedUserId: consumingUserId,
+        role: result.link.roleToGrant,
+      });
+    }
+
     return {
       member: await this.enrichMember(result.member),
       projectId: result.link.projectId,
@@ -146,17 +157,18 @@ export class CollaborationService {
 
   async changeMemberRole(
     projectId: string,
-    targetUserId: string,
+    memberRef: string,
     newRole: ProjectMemberRole,
     requestingUserId: string,
   ): Promise<MemberResponse> {
     const requestor = await this.assertMembership(projectId, requestingUserId, 'owner');
 
+    const targetUserId = resolveMemberUserId(projectId, memberRef);
     if (targetUserId === requestingUserId) {
       throw new ForbiddenException('Cannot change your own role');
     }
 
-    const target = await this.appData.getProjectMembership(projectId, targetUserId);
+    const target = await this.appData.getProjectMembershipByRef(projectId, memberRef);
     if (!target || target.status === 'removed') {
       throw new NotFoundException('Member not found');
     }
@@ -189,16 +201,17 @@ export class CollaborationService {
 
   async removeMember(
     projectId: string,
-    targetUserId: string,
+    memberRef: string,
     requestingUserId: string,
   ): Promise<void> {
     const requestor = await this.assertMembership(projectId, requestingUserId, 'editor');
 
+    const targetUserId = resolveMemberUserId(projectId, memberRef);
     if (targetUserId === requestingUserId) {
       throw new ForbiddenException('Use the leave endpoint to remove yourself');
     }
 
-    const target = await this.appData.getProjectMembership(projectId, targetUserId);
+    const target = await this.appData.getProjectMembershipByRef(projectId, memberRef);
     if (!target || target.status === 'removed') {
       throw new NotFoundException('Member not found');
     }

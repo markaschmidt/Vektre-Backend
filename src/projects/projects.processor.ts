@@ -156,6 +156,12 @@ export class ProjectsProcessor extends WorkerHost {
         actorUserId: job.actorUserId,
         role: updated.role,
       });
+      await this.notifications.notifyProjectMemberJoined({
+        projectId: job.projectId,
+        projectName: project.name,
+        joinedUserId: job.memberUserId,
+        role: updated.role,
+      });
       return;
     }
 

@@ -13,6 +13,7 @@ import type {
 import {
   notificationTypeForAccessLoss,
   projectAccessLossMetadata,
+  projectMemberJoinNotifyRecipientIds,
 } from './models/notification.model.js';
 import {
   toNotificationActorSummary,
@@ -112,6 +113,51 @@ export class NotificationsService {
       body: `A member left the project (was ${input.previousRole}).`,
       metadata: { previousRole: input.previousRole },
     });
+  }
+
+  /**
+   * Notify project owners and editors when someone joins.
+   * The joiner is excluded; the project owner is always included even without a member row.
+   */
+  async notifyProjectMemberJoined(input: {
+    projectId: string;
+    projectName: string;
+    joinedUserId: string;
+    role: ProjectMemberRole;
+    inviteId?: string;
+  }): Promise<void> {
+    const [project, members] = await Promise.all([
+      this.appData.getProjectById(input.projectId),
+      this.appData.listProjectMembers(input.projectId),
+    ]);
+    if (!project) return;
+
+    const recipientIds = projectMemberJoinNotifyRecipientIds({
+      ownerUserId: project.ownerUserId,
+      members: members.map((member) => ({
+        userId: member.userId,
+        role: member.role,
+      })),
+      joinedUserId: input.joinedUserId,
+    });
+    if (recipientIds.length === 0) return;
+
+    await Promise.all(
+      recipientIds.map((userId) =>
+        this.notifications.create({
+          userId,
+          actorUserId: input.joinedUserId,
+          projectId: input.projectId,
+          type: 'project_member_joined',
+          title: `Someone joined ${input.projectName}`,
+          body: `A new member joined as ${input.role}.`,
+          metadata: {
+            role: input.role,
+            ...(input.inviteId ? { inviteId: input.inviteId } : {}),
+          },
+        }),
+      ),
+    );
   }
 
   /**

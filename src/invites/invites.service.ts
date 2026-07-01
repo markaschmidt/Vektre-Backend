@@ -206,16 +206,14 @@ export class InvitesService {
 
     this.logger.log(`User ${userId} joined project ${invite.projectId} via code invite ${invite.inviteId}`);
 
-    // Notify the inviter (best-effort; never throws)
     const project = await this.appData.getProjectById(invite.projectId);
     if (project) {
-      await this.notifications.notifyInviteAccepted({
+      await this.notifications.notifyProjectMemberJoined({
         projectId: invite.projectId,
         projectName: project.name,
-        inviteId: invite.inviteId,
-        inviterUserId: invite.invitedByUserId,
-        acceptedByUserId: userId,
+        joinedUserId: userId,
         role: invite.roleToGrant,
+        inviteId: invite.inviteId,
       });
     }
 
@@ -259,6 +257,17 @@ export class InvitesService {
     }
 
     this.logger.log(`User ${userId} accepted email invite ${inviteId} for project ${invite.projectId}`);
+
+    const project = await this.appData.getProjectById(invite.projectId);
+    if (project) {
+      await this.notifications.notifyProjectMemberJoined({
+        projectId: invite.projectId,
+        projectName: project.name,
+        joinedUserId: userId,
+        role: result.invite.roleToGrant,
+        inviteId,
+      });
+    }
 
     return {
       projectId: result.invite.projectId,
