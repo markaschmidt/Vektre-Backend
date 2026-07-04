@@ -172,6 +172,90 @@ export interface ProjectInviteRow {
   updatedAt: Date;
 }
 
+// ─── Collaboration documents (Yjs registry) ─────────────────────────────────
+
+export type CollaborationDocumentType = 'storyboard' | 'canvas' | 'gui_screen';
+
+export interface CollaborationDocumentRow {
+  documentKey: string;
+  documentId: string;
+  projectId: string;
+  documentType: CollaborationDocumentType;
+  title: string;
+  storageRef?: string | null;
+  version: number;
+  createdByUserId?: string;
+  updatedByUserId?: string;
+  archivedAt?: Date;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CollaborationSnapshotRow {
+  snapshotId: string;
+  documentKey: string;
+  documentId: string;
+  stateVector?: string;
+  storageRef: string;
+  byteLength?: number;
+  createdByUserId?: string;
+  createdAt: Date;
+}
+
+// ─── Project comments ────────────────────────────────────────────────────────
+
+export type ProjectCommentStatus = 'open' | 'resolved' | 'deleted';
+
+export interface ProjectCommentRow {
+  commentId: string;
+  projectId: string;
+  documentId?: string;
+  assetId?: string;
+  authorUserId: string;
+  parentCommentId?: string;
+  body: string;
+  status: ProjectCommentStatus;
+  anchor?: Record<string, unknown>;
+  resolvedByUserId?: string;
+  resolvedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ─── Collaboration activity (durable cross-surface jobs) ───────────────────
+
+export type CollaborationActivityType =
+  | 'model_generation'
+  | 'image_generation'
+  | 'asset_import'
+  | 'project_sync'
+  | 'ai_task';
+
+export type CollaborationActivityStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface CollaborationActivityRow {
+  activityId: string;
+  projectId: string;
+  documentId?: string;
+  documentType?: CollaborationDocumentType;
+  requestId?: string;
+  actorUserId: string;
+  activityType: CollaborationActivityType;
+  status: CollaborationActivityStatus;
+  target?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  errorMessage?: string;
+  reconciledAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ProviderCredentialRow {
   userId: string;
   provider: string;

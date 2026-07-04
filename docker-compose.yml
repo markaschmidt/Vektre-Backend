@@ -51,13 +51,21 @@ services:
     env_file:
       - ../.env
     environment:
+      NODE_ENV: production
       COLLAB_PORT: 3012
+      COLLAB_HEALTH_PORT: 3013
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SUPABASE_COLLAB_BUCKET: ${SUPABASE_COLLAB_BUCKET:-collaboration-snapshots}
     depends_on:
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3013/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 volumes:
   redis-data:

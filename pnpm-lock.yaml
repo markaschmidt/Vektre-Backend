@@ -56,6 +56,9 @@ importers:
       lib0:
         specifier: ^0.2.117
         version: 0.2.117
+      lru-cache:
+        specifier: ^11.1.0
+        version: 11.3.5
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2

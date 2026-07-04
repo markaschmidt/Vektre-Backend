@@ -17,6 +17,13 @@ import type {
   ProjectInviteRow,
   InviteType,
   InviteStatus,
+  CollaborationDocumentType,
+  CollaborationDocumentRow,
+  CollaborationSnapshotRow,
+  ProjectCommentRow,
+  CollaborationActivityType,
+  CollaborationActivityStatus,
+  CollaborationActivityRow,
 } from './app-data.types.js';
 
 @Injectable()
@@ -1011,6 +1018,358 @@ export class AppDataService {
     return { invite: mapProjectInviteRow(updatedInvite), member };
   }
 
+  // ─── Collaboration Documents (Yjs registry) ─────────────────────────────────
+
+  async createCollaborationDocument(row: {
+    documentKey: string;
+    documentId: string;
+    projectId: string;
+    documentType: CollaborationDocumentType;
+    title: string;
+    createdByUserId: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<CollaborationDocumentRow> {
+    this.logger.debug(`createCollaborationDocument: ${row.documentKey}`);
+    const now = new Date().toISOString();
+    const { data, error } = await this.db()
+      .from('collaboration_document')
+      .insert({
+        document_key: row.documentKey,
+        document_id: row.documentId,
+        project_id: row.projectId,
+        document_type: row.documentType,
+        title: row.title.trim() || 'Untitled',
+        version: 0,
+        created_by_user_id: row.createdByUserId,
+        metadata_json: row.metadata ?? null,
+        created_at: now,
+        updated_at: now,
+      })
+      .select('*')
+      .single();
+    throwOnError('createCollaborationDocument', error);
+    return mapCollaborationDocumentRow(data);
+  }
+
+  async getCollaborationDocumentByKey(documentKey: string): Promise<CollaborationDocumentRow | null> {
+    const { data, error } = await this.db()
+      .from('collaboration_document')
+      .select('*')
+      .eq('document_key', documentKey)
+      .maybeSingle();
+    throwOnError('getCollaborationDocumentByKey', error);
+    return data ? mapCollaborationDocumentRow(data) : null;
+  }
+
+  async getCollaborationDocumentById(
+    projectId: string,
+    documentId: string,
+  ): Promise<CollaborationDocumentRow | null> {
+    const { data, error } = await this.db()
+      .from('collaboration_document')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('document_id', documentId)
+      .maybeSingle();
+    throwOnError('getCollaborationDocumentById', error);
+    return data ? mapCollaborationDocumentRow(data) : null;
+  }
+
+  async listCollaborationDocuments(
+    projectId: string,
+    opts: { documentType?: CollaborationDocumentType; includeArchived?: boolean } = {},
+  ): Promise<CollaborationDocumentRow[]> {
+    let query = this.db()
+      .from('collaboration_document')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('updated_at', { ascending: false });
+
+    if (opts.documentType) query = query.eq('document_type', opts.documentType);
+    if (!opts.includeArchived) query = query.is('archived_at', null);
+
+    const { data, error } = await query;
+    throwOnError('listCollaborationDocuments', error);
+    return (data ?? []).map(mapCollaborationDocumentRow);
+  }
+
+  async updateCollaborationDocument(
+    documentKey: string,
+    patch: {
+      title?: string;
+      archived?: boolean;
+      metadata?: Record<string, unknown>;
+      version?: number;
+      updatedByUserId?: string;
+    },
+  ): Promise<CollaborationDocumentRow | null> {
+    this.logger.debug(`updateCollaborationDocument: ${documentKey}`);
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (patch.title !== undefined) update.title = patch.title.trim() || 'Untitled';
+    if (patch.archived !== undefined) update.archived_at = patch.archived ? new Date().toISOString() : null;
+    if (patch.metadata !== undefined) update.metadata_json = patch.metadata;
+    if (patch.version !== undefined) update.version = patch.version;
+    if (patch.updatedByUserId !== undefined) update.updated_by_user_id = patch.updatedByUserId;
+
+    const { data, error } = await this.db()
+      .from('collaboration_document')
+      .update(update)
+      .eq('document_key', documentKey)
+      .select('*')
+      .maybeSingle();
+    throwOnError('updateCollaborationDocument', error);
+    return data ? mapCollaborationDocumentRow(data) : null;
+  }
+
+  async listCollaborationSnapshots(
+    documentKey: string,
+    opts: { limit?: number } = {},
+  ): Promise<CollaborationSnapshotRow[]> {
+    const { data, error } = await this.db()
+      .from('collaboration_snapshot')
+      .select('*')
+      .eq('document_key', documentKey)
+      .order('created_at', { ascending: false })
+      .limit(opts.limit ?? 50);
+    throwOnError('listCollaborationSnapshots', error);
+    return (data ?? []).map(mapCollaborationSnapshotRow);
+  }
+
+  async getCollaborationSnapshotById(snapshotId: string): Promise<CollaborationSnapshotRow | null> {
+    const { data, error } = await this.db()
+      .from('collaboration_snapshot')
+      .select('*')
+      .eq('snapshot_id', snapshotId)
+      .maybeSingle();
+    throwOnError('getCollaborationSnapshotById', error);
+    return data ? mapCollaborationSnapshotRow(data) : null;
+  }
+
+  // ─── Project Comments ────────────────────────────────────────────────────────
+
+  async createProjectComment(row: {
+    commentId: string;
+    projectId: string;
+    documentId?: string;
+    assetId?: string;
+    authorUserId: string;
+    parentCommentId?: string;
+    body: string;
+    anchor?: Record<string, unknown>;
+  }): Promise<ProjectCommentRow> {
+    this.logger.debug(`createProjectComment: ${row.commentId}`);
+    const now = new Date().toISOString();
+    const { data, error } = await this.db()
+      .from('project_comment')
+      .insert({
+        comment_id: row.commentId,
+        project_id: row.projectId,
+        document_id: row.documentId ?? null,
+        asset_id: row.assetId ?? null,
+        author_user_id: row.authorUserId,
+        parent_comment_id: row.parentCommentId ?? null,
+        body: row.body,
+        status: 'open',
+        anchor_json: row.anchor ?? null,
+        anchor_id: (row.anchor as { objectId?: string; blockId?: string; componentId?: string } | undefined)
+          ?.objectId ?? (row.anchor as { blockId?: string } | undefined)?.blockId ?? null,
+        anchor_type: row.documentId ? 'document' : row.assetId ? 'asset' : null,
+        created_at: now,
+        updated_at: now,
+      })
+      .select('*')
+      .single();
+    throwOnError('createProjectComment', error);
+    return mapProjectCommentRow(data);
+  }
+
+  async getProjectComment(commentId: string): Promise<ProjectCommentRow | null> {
+    const { data, error } = await this.db()
+      .from('project_comment')
+      .select('*')
+      .eq('comment_id', commentId)
+      .maybeSingle();
+    throwOnError('getProjectComment', error);
+    return data ? mapProjectCommentRow(data) : null;
+  }
+
+  async listProjectComments(
+    projectId: string,
+    opts: { documentId?: string; includeDeleted?: boolean } = {},
+  ): Promise<ProjectCommentRow[]> {
+    let query = this.db()
+      .from('project_comment')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+
+    if (opts.documentId) query = query.eq('document_id', opts.documentId);
+    if (!opts.includeDeleted) query = query.neq('status', 'deleted');
+
+    const { data, error } = await query;
+    throwOnError('listProjectComments', error);
+    return (data ?? []).map(mapProjectCommentRow);
+  }
+
+  async updateProjectComment(
+    commentId: string,
+    patch: { body?: string },
+  ): Promise<ProjectCommentRow | null> {
+    const { data, error } = await this.db()
+      .from('project_comment')
+      .update({ body: patch.body, updated_at: new Date().toISOString() })
+      .eq('comment_id', commentId)
+      .select('*')
+      .maybeSingle();
+    throwOnError('updateProjectComment', error);
+    return data ? mapProjectCommentRow(data) : null;
+  }
+
+  async resolveProjectComment(
+    commentId: string,
+    resolvedByUserId: string,
+    resolved: boolean,
+  ): Promise<ProjectCommentRow | null> {
+    const now = new Date().toISOString();
+    const { data, error } = await this.db()
+      .from('project_comment')
+      .update({
+        status: resolved ? 'resolved' : 'open',
+        resolved: resolved,
+        resolved_by_user_id: resolved ? resolvedByUserId : null,
+        resolved_at: resolved ? now : null,
+        updated_at: now,
+      })
+      .eq('comment_id', commentId)
+      .select('*')
+      .maybeSingle();
+    throwOnError('resolveProjectComment', error);
+    return data ? mapProjectCommentRow(data) : null;
+  }
+
+  async deleteProjectComment(commentId: string): Promise<void> {
+    const { error } = await this.db()
+      .from('project_comment')
+      .update({ status: 'deleted', updated_at: new Date().toISOString() })
+      .eq('comment_id', commentId);
+    throwOnError('deleteProjectComment', error);
+  }
+
+  // ─── Collaboration Activity (durable generation/import/sync jobs) ──────────
+
+  async createCollaborationActivity(row: {
+    activityId: string;
+    projectId: string;
+    documentId?: string;
+    documentType?: CollaborationDocumentType;
+    requestId?: string;
+    actorUserId: string;
+    activityType: CollaborationActivityType;
+    target?: Record<string, unknown>;
+  }): Promise<CollaborationActivityRow> {
+    this.logger.debug(`createCollaborationActivity: ${row.activityId} (${row.activityType})`);
+    const now = new Date().toISOString();
+    const { data, error } = await this.db()
+      .from('collaboration_activity')
+      .insert({
+        activity_id: row.activityId,
+        project_id: row.projectId,
+        document_id: row.documentId ?? null,
+        document_type: row.documentType ?? null,
+        request_id: row.requestId ?? null,
+        actor_user_id: row.actorUserId,
+        activity_type: row.activityType,
+        status: 'pending',
+        target_json: row.target ?? null,
+        created_at: now,
+        updated_at: now,
+      })
+      .select('*')
+      .single();
+    throwOnError('createCollaborationActivity', error);
+    return mapCollaborationActivityRow(data);
+  }
+
+  async getCollaborationActivity(activityId: string): Promise<CollaborationActivityRow | null> {
+    const { data, error } = await this.db()
+      .from('collaboration_activity')
+      .select('*')
+      .eq('activity_id', activityId)
+      .maybeSingle();
+    throwOnError('getCollaborationActivity', error);
+    return data ? mapCollaborationActivityRow(data) : null;
+  }
+
+  async updateCollaborationActivity(
+    activityId: string,
+    patch: {
+      status?: CollaborationActivityStatus;
+      result?: Record<string, unknown>;
+      errorMessage?: string;
+      reconciled?: boolean;
+    },
+  ): Promise<CollaborationActivityRow | null> {
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (patch.status !== undefined) update.status = patch.status;
+    if (patch.result !== undefined) update.result_json = patch.result;
+    if (patch.errorMessage !== undefined) update.error_message = patch.errorMessage;
+    if (patch.reconciled !== undefined) {
+      update.reconciled_at = patch.reconciled ? new Date().toISOString() : null;
+    }
+
+    const { data, error } = await this.db()
+      .from('collaboration_activity')
+      .update(update)
+      .eq('activity_id', activityId)
+      .select('*')
+      .maybeSingle();
+    throwOnError('updateCollaborationActivity', error);
+    return data ? mapCollaborationActivityRow(data) : null;
+  }
+
+  async listActiveCollaborationActivity(projectId: string): Promise<CollaborationActivityRow[]> {
+    const { data, error } = await this.db()
+      .from('collaboration_activity')
+      .select('*')
+      .eq('project_id', projectId)
+      .in('status', ['pending', 'running'])
+      .order('created_at', { ascending: false });
+    throwOnError('listActiveCollaborationActivity', error);
+    return (data ?? []).map(mapCollaborationActivityRow);
+  }
+
+  async listUnreconciledCollaborationActivity(
+    projectId: string,
+    documentId?: string,
+  ): Promise<CollaborationActivityRow[]> {
+    let query = this.db()
+      .from('collaboration_activity')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('status', 'completed')
+      .is('reconciled_at', null)
+      .order('created_at', { ascending: false });
+    if (documentId) query = query.eq('document_id', documentId);
+
+    const { data, error } = await query;
+    throwOnError('listUnreconciledCollaborationActivity', error);
+    return (data ?? []).map(mapCollaborationActivityRow);
+  }
+
+  async getProjectAssetByRequestId(
+    projectId: string,
+    requestId: string,
+  ): Promise<ProjectAssetRow | null> {
+    const { data, error } = await this.db()
+      .from('project_asset')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('request_id', requestId)
+      .maybeSingle();
+    throwOnError('getProjectAssetByRequestId', error);
+    return data ? mapProjectAssetRow(data) : null;
+  }
+
   // ─── Internal helpers ───────────────────────────────────────────────────────
 
   // ─── Provider OAuth Credentials (ciphertext at rest — use ProviderCredentialService) ─
@@ -1211,6 +1570,74 @@ function mapShareLinkRow(row: Record<string, unknown>): ShareLinkRow {
     revokedAt: row.revoked_at ? new Date(row.revoked_at as string) : undefined,
     consumedAt: row.consumed_at ? new Date(row.consumed_at as string) : undefined,
     createdAt: new Date(row.created_at as string),
+  };
+}
+
+function mapCollaborationDocumentRow(row: Record<string, unknown>): CollaborationDocumentRow {
+  return {
+    documentKey: row.document_key as string,
+    documentId: row.document_id as string,
+    projectId: row.project_id as string,
+    documentType: row.document_type as CollaborationDocumentType,
+    title: (row.title as string | null) ?? 'Untitled',
+    storageRef: (row.storage_ref as string | null) ?? undefined,
+    version: Number(row.version ?? 0),
+    createdByUserId: (row.created_by_user_id as string | null) ?? undefined,
+    updatedByUserId: (row.updated_by_user_id as string | null) ?? undefined,
+    archivedAt: row.archived_at ? new Date(row.archived_at as string) : undefined,
+    metadata: (row.metadata_json as Record<string, unknown> | null) ?? undefined,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  };
+}
+
+function mapCollaborationSnapshotRow(row: Record<string, unknown>): CollaborationSnapshotRow {
+  return {
+    snapshotId: row.snapshot_id as string,
+    documentKey: row.document_key as string,
+    documentId: row.document_id as string,
+    stateVector: (row.state_vector as string | null) ?? undefined,
+    storageRef: row.storage_ref as string,
+    byteLength: row.byte_length != null ? Number(row.byte_length) : undefined,
+    createdByUserId: (row.created_by_user_id as string | null) ?? undefined,
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
+function mapProjectCommentRow(row: Record<string, unknown>): ProjectCommentRow {
+  return {
+    commentId: row.comment_id as string,
+    projectId: row.project_id as string,
+    documentId: (row.document_id as string | null) ?? undefined,
+    assetId: (row.asset_id as string | null) ?? undefined,
+    authorUserId: row.author_user_id as string,
+    parentCommentId: (row.parent_comment_id as string | null) ?? undefined,
+    body: row.body as string,
+    status: (row.status as ProjectCommentRow['status']) ?? (row.resolved ? 'resolved' : 'open'),
+    anchor: (row.anchor_json as Record<string, unknown> | null) ?? undefined,
+    resolvedByUserId: (row.resolved_by_user_id as string | null) ?? undefined,
+    resolvedAt: row.resolved_at ? new Date(row.resolved_at as string) : undefined,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  };
+}
+
+function mapCollaborationActivityRow(row: Record<string, unknown>): CollaborationActivityRow {
+  return {
+    activityId: row.activity_id as string,
+    projectId: row.project_id as string,
+    documentId: (row.document_id as string | null) ?? undefined,
+    documentType: (row.document_type as CollaborationDocumentType | null) ?? undefined,
+    requestId: (row.request_id as string | null) ?? undefined,
+    actorUserId: row.actor_user_id as string,
+    activityType: row.activity_type as CollaborationActivityType,
+    status: row.status as CollaborationActivityStatus,
+    target: (row.target_json as Record<string, unknown> | null) ?? undefined,
+    result: (row.result_json as Record<string, unknown> | null) ?? undefined,
+    errorMessage: (row.error_message as string | null) ?? undefined,
+    reconciledAt: row.reconciled_at ? new Date(row.reconciled_at as string) : undefined,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
   };
 }
 

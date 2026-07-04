@@ -16,6 +16,7 @@ import { ProjectsModule } from './projects/projects.module.js';
 import { CollaborationModule } from './collaboration/collaboration.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { InvitesModule } from './invites/invites.module.js';
+import { CollaborationDocumentsModule } from './collaboration-documents/collaboration-documents.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { InvitesModule } from './invites/invites.module.js';
     GenerativeModelModule,
     ProjectsModule,
     CollaborationModule,
+    CollaborationDocumentsModule,
     NotificationsModule,
     InvitesModule,
     GoogleDriveModule,
