@@ -5,6 +5,7 @@ import {
   GENERATIVE_MODEL_QUEUE,
   INTEGRATION_SYNC_QUEUE,
   PROJECT_OPS_QUEUE,
+  COLLAB_OPS_QUEUE,
 } from './queue-names.js';
 import { redisConfig } from './redis.config.js';
 
@@ -20,6 +21,7 @@ import { redisConfig } from './redis.config.js';
       { name: GENERATIVE_MODEL_QUEUE },
       { name: INTEGRATION_SYNC_QUEUE },
       { name: PROJECT_OPS_QUEUE },
+      { name: COLLAB_OPS_QUEUE },
     ),
   ],
   exports: [BullModule],

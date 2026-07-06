@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { CollaborationDocumentsService } from './collaboration-documents.service.js';
 import type { AppDataService } from '../integrations/app-data.service.js';
-import type { NotificationsService } from '../notifications/notifications.service.js';
+import type { CollaborationCommentNotificationsService } from './collaboration-comment-notifications.service.js';
 import type { SupabaseService } from '../integrations/supabase.js';
 import type {
   CollaborationActivityRow,
@@ -91,9 +91,10 @@ describe('CollaborationDocumentsService', () => {
     getProjectAssetByRequestId: jest.fn(),
   };
 
-  const notifications = {
-    notifyCommentMention: jest.fn().mockResolvedValue(undefined),
-    notifyCommentReply: jest.fn().mockResolvedValue(undefined),
+  const commentNotifications = {
+    enqueue: jest.fn(),
+    enqueueMentions: jest.fn(),
+    enqueueReply: jest.fn(),
   };
 
   const supabase = {
@@ -115,7 +116,7 @@ describe('CollaborationDocumentsService', () => {
 
     service = new CollaborationDocumentsService(
       appData as unknown as AppDataService,
-      notifications as unknown as NotificationsService,
+      commentNotifications as unknown as CollaborationCommentNotificationsService,
       supabase as unknown as SupabaseService,
     );
   });
@@ -370,12 +371,14 @@ describe('CollaborationDocumentsService', () => {
 
       expect(result.commentId).toBe('cmt-1');
       // Author is filtered out of the mention list even if self-mentioned.
-      expect(notifications.notifyCommentMention).toHaveBeenCalledTimes(1);
-      expect(notifications.notifyCommentMention).toHaveBeenCalledWith(
+      expect(commentNotifications.enqueueMentions).toHaveBeenCalledWith(
         expect.objectContaining({
-          recipientUserId: 'user-2',
+          mentionedUserIds: ['user-2', 'user-1'],
           authorUserId: 'user-1',
         }),
+      );
+      expect(appData.createCollaborationActivity).toHaveBeenCalledWith(
+        expect.objectContaining({ activityType: 'comment_created' }),
       );
     });
 
@@ -402,14 +405,14 @@ describe('CollaborationDocumentsService', () => {
       await service.createReply('proj-1', 'doc-1', 'cmt-1', 'user-2', {
         body: 'reply',
       });
-      expect(notifications.notifyCommentReply).toHaveBeenCalledWith(
+      expect(commentNotifications.enqueueReply).toHaveBeenCalledWith(
         expect.objectContaining({
           recipientUserId: 'user-1',
           authorUserId: 'user-2',
         }),
       );
 
-      notifications.notifyCommentReply.mockClear();
+      commentNotifications.enqueueReply.mockClear();
       appData.createProjectComment.mockResolvedValue(
         makeCommentRow({
           commentId: 'cmt-3',
@@ -420,7 +423,7 @@ describe('CollaborationDocumentsService', () => {
       await service.createReply('proj-1', 'doc-1', 'cmt-1', 'user-1', {
         body: 'self reply',
       });
-      expect(notifications.notifyCommentReply).not.toHaveBeenCalled();
+      expect(commentNotifications.enqueueReply).not.toHaveBeenCalled();
     });
 
     it('allows the comment author to edit their own comment', async () => {

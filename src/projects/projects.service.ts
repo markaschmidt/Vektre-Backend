@@ -29,6 +29,12 @@ import type {
   ProjectMemberRole,
   ProjectWorkspaceMode,
 } from '../integrations/app-data.types.js';
+import { resolvePostUpsertAssetStatus, normalizeAssetMetadata } from './asset-conventions.js';
+import {
+  toProjectAssetListItem,
+  type ProjectAssetListItem,
+  type ProjectAssetUpsertOperationResponse,
+} from './models/project-asset.model.js';
 import type {
   CreateProjectDto,
   UpdateProjectDto,
@@ -286,21 +292,43 @@ export class ProjectsService {
     return { requestId, projectId, status: 'queued' };
   }
 
-  async listAssets(userId: string, projectId: string) {
+  async listAssets(
+    userId: string,
+    projectId: string,
+    options: { includeNonReady?: boolean } = {},
+  ): Promise<ProjectAssetListItem[]> {
     await this.assertCanReadProject(userId, projectId);
-    return this.appData.listProjectAssets(projectId);
+    const rows = await this.appData.listProjectAssets(projectId);
+    const filtered = options.includeNonReady
+      ? rows
+      : rows.filter((row) => row.status === 'ready' || row.status === 'active');
+    return filtered.map(toProjectAssetListItem);
   }
 
   async upsertAsset(
     userId: string,
     projectId: string,
     dto: UpsertProjectAssetDto,
-  ): Promise<QueuedProjectOperation & { assetId: string }> {
+  ): Promise<ProjectAssetUpsertOperationResponse> {
     await this.assertCanEditProject(userId, projectId);
     this.assertName(dto.name, 'Asset name is required');
 
     const assetId = dto.assetId ?? randomUUID();
-    const storageRef = dto.storageRef ?? `supabase://project-assets/projects/${projectId}/assets/${assetId}/${dto.name}`;
+    const storageRef =
+      dto.storageRef ??
+      `supabase://project-assets/projects/${projectId}/assets/${assetId}/${dto.name}`;
+    const metadata = normalizeAssetMetadata(
+      assetId,
+      projectId,
+      dto.assetType,
+      dto.name,
+      dto.metadata,
+    );
+    const expectedAssetStatus = resolvePostUpsertAssetStatus({
+      sizeBytes: dto.sizeBytes,
+      storageRef,
+      metadata,
+    });
     const requestId = randomUUID();
     const payload: UpsertProjectAssetJob = {
       requestId,
@@ -313,7 +341,7 @@ export class ProjectsService {
       sizeBytes: dto.sizeBytes,
       storageRef,
       checksum: dto.checksum,
-      metadata: dto.metadata,
+      metadata,
     };
 
     await this.enqueueProjectJob(
@@ -324,7 +352,13 @@ export class ProjectsService {
       bullJobId('project', projectId, 'asset', assetId, 'upsert', requestId),
     );
 
-    return { requestId, projectId, assetId, status: 'queued' };
+    return {
+      requestId,
+      projectId,
+      assetId,
+      operationStatus: 'queued',
+      expectedAssetStatus,
+    };
   }
 
   async removeAsset(

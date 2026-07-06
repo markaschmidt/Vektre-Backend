@@ -1265,7 +1265,9 @@ export class AppDataService {
     requestId?: string;
     actorUserId: string;
     activityType: CollaborationActivityType;
+    status?: CollaborationActivityStatus;
     target?: Record<string, unknown>;
+    result?: Record<string, unknown>;
   }): Promise<CollaborationActivityRow> {
     this.logger.debug(`createCollaborationActivity: ${row.activityId} (${row.activityType})`);
     const now = new Date().toISOString();
@@ -1279,8 +1281,9 @@ export class AppDataService {
         request_id: row.requestId ?? null,
         actor_user_id: row.actorUserId,
         activity_type: row.activityType,
-        status: 'pending',
+        status: row.status ?? 'pending',
         target_json: row.target ?? null,
+        result_json: row.result ?? null,
         created_at: now,
         updated_at: now,
       })

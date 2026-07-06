@@ -230,7 +230,10 @@ export type CollaborationActivityType =
   | 'image_generation'
   | 'asset_import'
   | 'project_sync'
-  | 'ai_task';
+  | 'ai_task'
+  | 'comment_created'
+  | 'comment_replied'
+  | 'comment_resolved';
 
 export type CollaborationActivityStatus =
   | 'pending'

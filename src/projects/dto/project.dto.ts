@@ -204,6 +204,11 @@ export class ImportGeneratedAssetDto {
   @IsString()
   requestId!: string;
 
+  /** Preserve client repository ids such as `{repositoryItemId}` or `{id}-preview`. */
+  @IsOptional()
+  @IsString()
+  assetId?: string;
+
   @IsString()
   assetType!: string;
 
@@ -224,6 +229,10 @@ export class ImportGeneratedAssetDto {
   @IsOptional()
   @IsString()
   promptHash?: string;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }
 
 export { ShareLinkRole };

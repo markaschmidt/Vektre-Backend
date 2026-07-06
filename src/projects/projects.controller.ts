@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/authenticated-user.model.js';
@@ -130,8 +131,11 @@ export class ProjectsController {
   listAssets(
     @CurrentUser() user: AuthenticatedUser,
     @Param('projectId') projectId: string,
+    @Query('includeNonReady') includeNonReady?: string,
   ) {
-    return this.projectsService.listAssets(user.id, projectId);
+    return this.projectsService.listAssets(user.id, projectId, {
+      includeNonReady: includeNonReady === 'true' || includeNonReady === '1',
+    });
   }
 
   @Post(':projectId/assets')

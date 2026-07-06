@@ -15,6 +15,7 @@ import {
 import { AppDataService } from '../integrations/app-data.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AssetsService } from './assets.service.js';
+import { resolvePostUpsertAssetStatus } from './asset-conventions.js';
 import type {
   ArchiveProjectJob,
   CreateProjectJob,
@@ -206,6 +207,18 @@ export class ProjectsProcessor extends WorkerHost {
       checksum: job.checksum,
       metadata: job.metadata,
     });
+
+    const status = resolvePostUpsertAssetStatus({
+      sizeBytes: job.sizeBytes,
+      storageRef: job.storageRef,
+      metadata: job.metadata,
+    });
+    if (status === 'ready') {
+      await this.appData.updateProjectAssetStatus(job.assetId, 'ready');
+      this.logger.log(
+        `Metadata-only asset ${job.assetId} marked ready for project ${job.projectId}`,
+      );
+    }
   }
 
   private async handleAssetRemove(job: RemoveProjectAssetJob): Promise<void> {

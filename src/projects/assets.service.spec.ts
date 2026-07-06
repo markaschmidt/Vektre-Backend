@@ -9,7 +9,10 @@ import type { SupabaseService } from '../integrations/supabase.js';
 describe('AssetsService', () => {
   let service: AssetsService;
   const appData = {
-    getProjectForUser: jest.fn().mockResolvedValue({ projectId: 'proj-1' }),
+    resolveProjectAccessForUser: jest.fn().mockResolvedValue({
+      ok: true,
+      project: { projectId: 'proj-1', ownerUserId: 'user-1', name: 'Demo' },
+    }),
     upsertProjectAsset: jest.fn().mockResolvedValue({ assetId: 'asset-1' }),
     updateProjectAssetStatus: jest.fn().mockResolvedValue({ assetId: 'asset-1', status: 'ready' }),
     getProjectAsset: jest.fn(),
@@ -21,6 +24,7 @@ describe('AssetsService', () => {
     downloadObject: jest.fn().mockResolvedValue(Buffer.from('hello')),
     deleteObject: jest.fn().mockResolvedValue(undefined),
     deleteObjectsWithPrefix: jest.fn().mockResolvedValue(undefined),
+    listObjectPaths: jest.fn().mockResolvedValue([]),
   };
 
   beforeEach(() => {
@@ -47,11 +51,65 @@ describe('AssetsService', () => {
       'project-assets',
     );
     expect(result.sizeBytes).toBe(5);
+    expect(result.status).toBe('ready');
+    expect(result.assetType).toBe('image');
     expect(appData.updateProjectAssetStatus).toHaveBeenCalledWith(
       expect.any(String),
       'ready',
       expect.objectContaining({ sizeBytes: 5 }),
     );
+  });
+
+  it('returns ready upload response with metadata', async () => {
+    const result = await service.uploadAsset('user-1', 'proj-1', {
+      assetId: 'prop-1',
+      assetType: 'prop',
+      name: 'chair.glb',
+      mimeType: 'model/gltf-binary',
+      dataBase64: Buffer.from('glb').toString('base64'),
+      metadata: { source: 'desktop' },
+    });
+
+    expect(result.status).toBe('ready');
+    expect(result.assetId).toBe('prop-1');
+    expect(result.metadata).toEqual(expect.objectContaining({ projectRelativePath: 'chair.glb' }));
+  });
+
+  it('marks final chunk upload as ready', async () => {
+    appData.getProjectAsset.mockResolvedValue({
+      assetId: 'asset-1',
+      projectId: 'proj-1',
+      name: 'big.glb',
+      assetType: 'prop',
+      mimeType: 'model/gltf-binary',
+      bucket: 'project-assets',
+    });
+    supabase.listObjectPaths.mockResolvedValue([
+      'projects/proj-1/assets/asset-1/chunks/0',
+    ]);
+
+    const result = await service.uploadAssetChunk('user-1', 'proj-1', 'asset-1', {
+      chunkIndex: 0,
+      dataBase64: Buffer.from('chunk').toString('base64'),
+      isFinalChunk: true,
+    });
+
+    expect(result.status).toBe('ready');
+    expect(result.sizeBytes).toBeGreaterThan(0);
+  });
+
+  it('logs and 404s when objectPath is missing', async () => {
+    appData.getProjectAsset.mockResolvedValue({
+      assetId: 'asset-1',
+      projectId: 'proj-1',
+      name: 'model.glb',
+      assetType: 'model',
+      status: 'generating',
+    });
+
+    await expect(
+      service.getAssetBytes('user-1', 'proj-1', 'asset-1'),
+    ).rejects.toThrow('Asset bytes not available');
   });
 
   it('downloads asset bytes from Supabase Storage', async () => {
@@ -60,6 +118,7 @@ describe('AssetsService', () => {
       projectId: 'proj-1',
       name: 'model.glb',
       assetType: 'model',
+      status: 'ready',
       objectPath: 'projects/proj-1/assets/asset-1/file.bin',
       bucket: 'project-assets',
       mimeType: 'model/gltf-binary',
@@ -73,6 +132,7 @@ describe('AssetsService', () => {
     expect(result.dataBase64).toBe(Buffer.from('hello').toString('base64'));
     expect(result.name).toBe('model.glb');
     expect(result.assetType).toBe('model');
+    expect(result.status).toBe('ready');
   });
 
   it('passes metadata through on upload', async () => {

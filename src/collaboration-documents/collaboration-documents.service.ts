@@ -5,11 +5,16 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { AppDataService } from '../integrations/app-data.service.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
 import { requireProjectRole } from '../projects/project-access.js';
 import { hasPermission } from '../collaboration/models/collaboration.model.js';
+import {
+  generateActivityId,
+  generateCommentId,
+  generateDocId,
+  generateSnapshotId,
+} from './collaboration-ids.js';
+import { CollaborationCommentNotificationsService } from './collaboration-comment-notifications.service.js';
 import type {
   CollaborationActivityRow,
   CollaborationDocumentRow,
@@ -61,7 +66,7 @@ export class CollaborationDocumentsService {
 
   constructor(
     private readonly appData: AppDataService,
-    private readonly notifications: NotificationsService,
+    private readonly commentNotifications: CollaborationCommentNotificationsService,
     private readonly supabase: SupabaseService,
   ) {}
 
@@ -134,7 +139,7 @@ export class CollaborationDocumentsService {
       return this.toDocumentWithConnection(existing);
     }
 
-    const documentId = `doc_${randomUUID()}`;
+    const documentId = generateDocId();
     const documentKey = buildDocumentName(
       projectId,
       documentId,
@@ -331,7 +336,7 @@ export class CollaborationDocumentsService {
     await this.requireDocument(projectId, documentId);
 
     const row = await this.appData.createProjectComment({
-      commentId: `cmt_${randomUUID()}`,
+      commentId: generateCommentId(),
       projectId,
       documentId,
       assetId: dto.assetId,
@@ -341,6 +346,7 @@ export class CollaborationDocumentsService {
     });
 
     await this.notifyMentions(row, dto.mentionedUserIds);
+    await this.recordCommentActivity(projectId, documentId, userId, 'comment_created', row);
     return toCommentResponse(row);
   }
 
@@ -355,7 +361,7 @@ export class CollaborationDocumentsService {
     const parent = await this.requireComment(projectId, documentId, commentId);
 
     const row = await this.appData.createProjectComment({
-      commentId: `cmt_${randomUUID()}`,
+      commentId: generateCommentId(),
       projectId,
       documentId,
       assetId: parent.assetId,
@@ -366,18 +372,21 @@ export class CollaborationDocumentsService {
     });
 
     if (parent.authorUserId !== userId) {
-      await this.notifications.notifyCommentReply({
+      this.commentNotifications.enqueueReply({
         projectId,
         recipientUserId: parent.authorUserId,
         authorUserId: userId,
         commentId: row.commentId,
         body: row.body,
-        targetType: 'document',
-        targetId: documentId,
+        documentId,
+        assetId: parent.assetId,
         parentCommentId: commentId,
       });
     }
     await this.notifyMentions(row, dto.mentionedUserIds);
+    await this.recordCommentActivity(projectId, documentId, userId, 'comment_replied', row, {
+      parentCommentId: commentId,
+    });
 
     return toCommentResponse(row);
   }
@@ -427,6 +436,9 @@ export class CollaborationDocumentsService {
       resolved,
     );
     if (!updated) throw new NotFoundException('Comment not found');
+    await this.recordCommentActivity(projectId, documentId, userId, 'comment_resolved', updated, {
+      resolved,
+    });
     return toCommentResponse(updated);
   }
 
@@ -525,7 +537,7 @@ export class CollaborationDocumentsService {
       bucket,
     );
 
-    const restoredSnapshotId = `snap_${randomUUID()}`;
+    const restoredSnapshotId = generateSnapshotId();
     const restoredObjectPath = snapshotVersionObjectPath(
       { projectId, documentType: document.documentType, documentId },
       restoredSnapshotId,
@@ -572,7 +584,7 @@ export class CollaborationDocumentsService {
     }
 
     const row = await this.appData.createCollaborationActivity({
-      activityId: `act_${randomUUID()}`,
+      activityId: generateActivityId(),
       projectId,
       documentId,
       documentType,
@@ -580,6 +592,7 @@ export class CollaborationDocumentsService {
       actorUserId: userId,
       activityType: dto.activityType,
       target: dto.target,
+      result: dto.result,
     });
 
     this.logger.log(
@@ -687,11 +700,27 @@ export class CollaborationDocumentsService {
       projectId,
       activity.requestId,
     );
+    const previewAssetId =
+      asset?.metadata && typeof asset.metadata.previewAssetId === 'string'
+        ? asset.metadata.previewAssetId
+        : asset
+          ? `${asset.assetId}-preview`
+          : undefined;
     const updated = await this.appData.updateCollaborationActivity(activityId, {
       status: 'completed',
       result: {
         ...activity.result,
-        ...(asset ? { assetId: asset.assetId, assetStatus: asset.status } : {}),
+        ...(asset
+          ? {
+              assetId: asset.assetId,
+              assetStatus: asset.status,
+              previewAssetId,
+              projectRelativePath:
+                typeof asset.metadata?.projectRelativePath === 'string'
+                  ? asset.metadata.projectRelativePath
+                  : undefined,
+            }
+          : {}),
         outputRef: request.outputRef,
         ...(request.resultJson ?? {}),
       },
@@ -706,6 +735,10 @@ export class CollaborationDocumentsService {
   ): Promise<CollaborationActivityResponse> {
     await requireProjectRole(this.appData, userId, projectId, 'editor');
     const activity = await this.requireActivity(projectId, activityId);
+
+    if (activity.reconciledAt) {
+      return toCollaborationActivityResponse(activity);
+    }
 
     if (activity.status !== 'completed') {
       throw new BadRequestException(
@@ -781,29 +814,46 @@ export class CollaborationDocumentsService {
     comment: ProjectCommentRow,
     mentionedUserIds?: string[],
   ): Promise<void> {
-    if (!mentionedUserIds || mentionedUserIds.length === 0) return;
-    const uniqueRecipients = [...new Set(mentionedUserIds)].filter(
-      (id) => id !== comment.authorUserId,
-    );
+    this.commentNotifications.enqueueMentions({
+      projectId: comment.projectId,
+      authorUserId: comment.authorUserId,
+      commentId: comment.commentId,
+      body: comment.body,
+      documentId: comment.documentId,
+      assetId: comment.assetId,
+      parentCommentId: comment.parentCommentId,
+      mentionedUserIds,
+    });
+  }
 
-    await Promise.all(
-      uniqueRecipients.map((recipientUserId) =>
-        this.notifications.notifyCommentMention({
-          projectId: comment.projectId,
-          recipientUserId,
-          authorUserId: comment.authorUserId,
-          commentId: comment.commentId,
-          body: comment.body,
-          targetType: comment.documentId
-            ? 'document'
-            : comment.assetId
-              ? 'asset'
-              : 'project',
-          targetId: comment.documentId ?? comment.assetId,
-          parentCommentId: comment.parentCommentId,
-        }),
-      ),
-    );
+  private async recordCommentActivity(
+    projectId: string,
+    documentId: string,
+    userId: string,
+    activityType: 'comment_created' | 'comment_replied' | 'comment_resolved',
+    comment: ProjectCommentRow,
+    extra?: Record<string, unknown>,
+  ): Promise<void> {
+    const document = await this.appData.getCollaborationDocumentById(projectId, documentId);
+    await this.appData.createCollaborationActivity({
+      activityId: generateActivityId(),
+      projectId,
+      documentId,
+      documentType: document?.documentType,
+      actorUserId: userId,
+      activityType,
+      status: 'completed',
+      target: {
+        commentId: comment.commentId,
+        assetId: comment.assetId,
+        anchor: comment.anchor,
+        ...(extra ?? {}),
+      },
+      result: {
+        commentId: comment.commentId,
+        body: comment.body,
+      },
+    });
   }
 }
 

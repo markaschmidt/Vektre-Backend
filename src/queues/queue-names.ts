@@ -2,6 +2,7 @@ export const USER_OPS_QUEUE = 'user-ops';
 export const GENERATIVE_MODEL_QUEUE = 'generative-model';
 export const INTEGRATION_SYNC_QUEUE = 'integration-sync';
 export const PROJECT_OPS_QUEUE = 'project-ops';
+export const COLLAB_OPS_QUEUE = 'collab-ops';
 
 // ── Generative-model job names ────────────────────────────────────────────────
 export const JOB_REPLICATE_GENERATE_3D = 'replicate-generate-3d';
@@ -26,3 +27,5 @@ export const JOB_PROJECT_MEMBER_UPSERT = 'project-member-upsert';
 export const JOB_PROJECT_MEMBER_REMOVE = 'project-member-remove';
 export const JOB_PROJECT_ASSET_UPSERT = 'project-asset-upsert';
 export const JOB_PROJECT_ASSET_REMOVE = 'project-asset-remove';
+
+export const JOB_COLLAB_COMMENT_NOTIFY = 'collab-comment-notify';

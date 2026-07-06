@@ -7,6 +7,15 @@ import { randomUUID } from 'node:crypto';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { SupabaseService } from '../integrations/supabase.js';
 import { requireProjectAccess } from './project-access.js';
+import {
+  normalizeAssetMetadata,
+} from './asset-conventions.js';
+import {
+  toReadyUploadResponse,
+  type ProjectAssetBytesResponse,
+  type ProjectAssetChunkUploadResponse,
+  type ProjectAssetUploadResponse,
+} from './models/project-asset.model.js';
 import type {
   UploadProjectAssetDto,
   UploadProjectAssetChunkDto,
@@ -44,12 +53,7 @@ export class AssetsService {
     userId: string,
     projectId: string,
     dto: UploadProjectAssetDto,
-  ): Promise<{
-    assetId: string;
-    storageRef: string;
-    sizeBytes: number;
-    chunkCount: number;
-  }> {
+  ): Promise<ProjectAssetUploadResponse> {
     await this.assertProjectAccess(userId, projectId);
 
     const assetId = dto.assetId ?? `asset_${randomUUID()}`;
@@ -57,6 +61,13 @@ export class AssetsService {
     const bucket = this.supabase.getStorageBucket();
     const objectPath = buildAssetObjectPath(projectId, assetId, dto.name);
     const storageRef = `${SUPABASE_ASSET_REF_PREFIX}/${objectPath}`;
+    const metadata = normalizeAssetMetadata(
+      assetId,
+      projectId,
+      dto.assetType,
+      dto.name,
+      dto.metadata,
+    );
 
     await this.appData.upsertProjectAsset({
       assetId,
@@ -73,7 +84,7 @@ export class AssetsService {
       sourceProvider: dto.sourceProvider,
       requestId: dto.requestId,
       promptHash: dto.promptHash,
-      metadata: dto.metadata,
+      metadata,
     });
 
     await this.supabase.uploadObject(objectPath, Buffer.from(bytes), dto.mimeType, bucket);
@@ -86,7 +97,14 @@ export class AssetsService {
     });
 
     this.logger.log(`Asset ${assetId} stored in Supabase Storage for project ${projectId}`);
-    return { assetId, storageRef, sizeBytes: bytes.byteLength, chunkCount: 1 };
+    return toReadyUploadResponse({
+      assetId,
+      storageRef,
+      sizeBytes: bytes.byteLength,
+      mimeType: dto.mimeType,
+      assetType: dto.assetType,
+      metadata,
+    });
   }
 
   /**
@@ -98,7 +116,7 @@ export class AssetsService {
     projectId: string,
     assetId: string,
     dto: UploadProjectAssetChunkDto,
-  ): Promise<{ assetId: string; chunkIndex: number; byteLength: number }> {
+  ): Promise<ProjectAssetChunkUploadResponse> {
     await this.assertProjectAccess(userId, projectId);
 
     const asset = await this.appData.getProjectAsset(assetId);
@@ -133,9 +151,25 @@ export class AssetsService {
         bucket,
         objectPath,
       });
+
+      return {
+        assetId,
+        chunkIndex: dto.chunkIndex,
+        byteLength: bytes.byteLength,
+        status: 'ready',
+        storageRef,
+        sizeBytes: merged.byteLength,
+        mimeType: asset.mimeType,
+        assetType: asset.assetType,
+      };
     }
 
-    return { assetId, chunkIndex: dto.chunkIndex, byteLength: bytes.byteLength };
+    return {
+      assetId,
+      chunkIndex: dto.chunkIndex,
+      byteLength: bytes.byteLength,
+      status: 'uploading',
+    };
   }
 
   /**
@@ -145,29 +179,34 @@ export class AssetsService {
     userId: string,
     projectId: string,
     assetId: string,
-  ): Promise<{
-    assetId: string;
-    name: string;
-    mimeType?: string;
-    sizeBytes: number;
-    dataBase64: string;
-    assetType: string;
-    metadata?: Record<string, unknown>;
-  }> {
+  ): Promise<ProjectAssetBytesResponse> {
     await this.assertProjectAccess(userId, projectId);
 
     const asset = await this.appData.getProjectAsset(assetId);
     if (!asset || asset.projectId !== projectId) {
+      this.logger.warn(
+        `getAssetBytes 404: asset row missing projectId=${projectId} assetId=${assetId}`,
+      );
       throw new NotFoundException('Asset not found');
     }
     if (!asset.objectPath) {
-      throw new NotFoundException('Asset bytes not found');
+      this.logger.warn(
+        `getAssetBytes 404: objectPath missing projectId=${projectId} assetId=${assetId} status=${asset.status}`,
+      );
+      throw new NotFoundException('Asset bytes not available');
     }
 
-    const buffer = await this.supabase.downloadObject(
-      asset.objectPath,
-      asset.bucket ?? this.supabase.getStorageBucket(),
-    );
+    const bucket = asset.bucket ?? this.supabase.getStorageBucket();
+    let buffer: Buffer;
+    try {
+      buffer = await this.supabase.downloadObject(asset.objectPath, bucket);
+    } catch (err) {
+      this.logger.error(
+        `getAssetBytes 404: storage object missing projectId=${projectId} assetId=${assetId} objectPath=${asset.objectPath} bucket=${bucket}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new NotFoundException('Asset bytes not found in storage');
+    }
+
     return {
       assetId,
       name: asset.name,
@@ -176,6 +215,7 @@ export class AssetsService {
       dataBase64: buffer.toString('base64'),
       assetType: asset.assetType,
       metadata: asset.metadata,
+      status: asset.status,
     };
   }
 
@@ -210,13 +250,20 @@ export class AssetsService {
     userId: string,
     projectId: string,
     dto: ImportGeneratedAssetDto,
-  ): Promise<{ assetId: string; storageRef: string; sizeBytes: number; chunkCount: number }> {
+  ): Promise<ProjectAssetUploadResponse> {
     await this.assertProjectAccess(userId, projectId);
 
-    const assetId = `asset_${randomUUID()}`;
+    const assetId = dto.assetId ?? `asset_${randomUUID()}`;
     const bucket = this.supabase.getStorageBucket();
     const objectPath = buildAssetObjectPath(projectId, assetId, dto.name);
     const storageRef = `${SUPABASE_ASSET_REF_PREFIX}/${objectPath}`;
+    const metadata = normalizeAssetMetadata(
+      assetId,
+      projectId,
+      dto.assetType,
+      dto.name,
+      dto.metadata,
+    );
 
     this.logger.log(`Importing generated asset from ${dto.sourceProvider}: ${dto.sourceUrl}`);
     const response = await fetch(dto.sourceUrl);
@@ -245,6 +292,7 @@ export class AssetsService {
       sourceProvider: dto.sourceProvider,
       requestId: dto.requestId,
       promptHash: dto.promptHash,
+      metadata,
     });
 
     await this.supabase.uploadObject(objectPath, buffer, contentType, bucket);
@@ -256,7 +304,14 @@ export class AssetsService {
     });
 
     this.logger.log(`Generated asset ${assetId} imported into Supabase for project ${projectId}`);
-    return { assetId, storageRef, sizeBytes: buffer.byteLength, chunkCount: 1 };
+    return toReadyUploadResponse({
+      assetId,
+      storageRef,
+      sizeBytes: buffer.byteLength,
+      mimeType: contentType,
+      assetType: dto.assetType,
+      metadata,
+    });
   }
 
   /**
