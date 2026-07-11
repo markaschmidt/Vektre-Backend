@@ -3,21 +3,23 @@ import type { CollaborationDocumentType } from '../../collaboration-yjs/document
 
 /**
  * Areas a user can be looking at within an open cloud project. Only
- * `canvas` / `storyboard` / `gui_screen` have a backing Yjs document room —
- * the rest are project-session-only presence pointers.
+ * `storyboard` / `foundry` / `canvas` / `gui_screen` have a backing Yjs
+ * document room — the rest are project-session-only presence pointers.
  */
 export type ProjectActiveSurface =
   | 'dashboard'
-  | 'canvas'
   | 'storyboard'
+  | 'foundry'
+  | 'canvas'
   | 'gui_screen'
   | 'repository'
   | 'settings';
 
 export const PROJECT_ACTIVE_SURFACES: readonly ProjectActiveSurface[] = [
   'dashboard',
-  'canvas',
   'storyboard',
+  'foundry',
+  'canvas',
   'gui_screen',
   'repository',
   'settings',
@@ -52,7 +54,8 @@ export const PROJECT_SESSION_AWARENESS_CONTRACT: ProjectSessionAwarenessContract
     avatarUrl: 'string | undefined',
     role: 'ProjectMemberRole — owner | editor | commenter | viewer',
     color: 'string — stable per-member cursor/highlight color',
-    activeSurface: 'ProjectActiveSurface — dashboard | canvas | storyboard | gui_screen | repository | settings',
+    activeSurface:
+      'ProjectActiveSurface — dashboard | storyboard | foundry | canvas | gui_screen | repository | settings',
     activeDocumentId: 'string | undefined — set when activeSurface has an open document',
     activity: '{ activityId, requestId, activityType, status } | undefined — cross-surface activity in progress',
   },
@@ -84,14 +87,22 @@ export function buildSurfaceAwarenessContract(
         description: 'Storyboard editor awareness: text cursor, selection, and active block.',
         fields: { ...common, selectionRange: '{ blockId, from, to } | undefined', activeBlockId: 'string | undefined' },
       };
-    case 'canvas':
+    case 'foundry':
       return {
-        description: 'Canvas editor awareness: selected objects, transform gizmo, viewport/camera.',
+        description: 'Foundry viewer awareness: shared selected model/item in the 3D scene.',
         fields: {
           ...common,
-          selectedObjectIds: 'string[]',
-          transformState: '{ objectId, mode: "translate" | "rotate" | "scale" } | undefined',
-          viewport: '{ position, target, zoom } | undefined — optional, for "user is looking here" UX',
+          selectedItemId: 'string | undefined — collaboratively shared foundry item selection',
+        },
+      };
+    case 'canvas':
+      return {
+        description: 'Canvas workflow awareness: selected blocks, viewport pan/zoom, active generation block.',
+        fields: {
+          ...common,
+          selectedBlockIds: 'string[]',
+          activeBlockId: 'string | undefined',
+          viewport: '{ x, y, zoom } | undefined',
         },
       };
     case 'gui_screen':

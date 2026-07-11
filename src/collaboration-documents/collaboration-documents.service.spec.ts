@@ -326,6 +326,30 @@ describe('CollaborationDocumentsService', () => {
       expect(result.dataBase64).toBe('');
     });
 
+    it('falls back to legacy canvas storage when fetching foundry content', async () => {
+      appData.getCollaborationDocumentById.mockResolvedValue(
+        makeDocumentRow({ documentType: 'foundry', documentKey: 'project:proj-1:doc:foundry:doc-1' }),
+      );
+      supabase.downloadObject.mockImplementation(async (path: string) => {
+        if (path === 'projects/proj-1/docs/foundry/doc-1/latest.yjs') {
+          throw new Error('Object not found');
+        }
+        if (path === 'projects/proj-1/docs/canvas/doc-1/latest.yjs') {
+          return Buffer.from('legacy-bytes');
+        }
+        throw new Error(`unexpected path ${path}`);
+      });
+
+      const result = await service.getDocumentContent(
+        'proj-1',
+        'doc-1',
+        'user-1',
+      );
+
+      expect(result.hasContent).toBe(true);
+      expect(result.dataBase64).toBe(Buffer.from('legacy-bytes').toString('base64'));
+    });
+
     it('re-throws storage errors unrelated to a missing object', async () => {
       appData.getCollaborationDocumentById.mockResolvedValue(makeDocumentRow());
       supabase.downloadObject.mockRejectedValue(

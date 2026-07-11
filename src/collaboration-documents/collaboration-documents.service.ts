@@ -26,6 +26,7 @@ import { buildDocumentName } from '../collaboration-yjs/document-name.js';
 import {
   snapshotObjectPath,
   snapshotVersionObjectPath,
+  legacyFoundrySnapshotObjectPath,
   getCollabBucket,
 } from '../collaboration-yjs/collab-persistence.js';
 import { SupabaseService } from '../integrations/supabase.js';
@@ -247,8 +248,8 @@ export class CollaborationDocumentsService {
    * membership/RLS governs who can see a document exists and read its last
    * saved state (this endpoint, always available whenever the API + Supabase
    * are up), while the collab server only adds real-time co-editing on top.
-   * A member must be able to fetch the latest storyboard/canvas/gui content
-   * even if the collab websocket is down or misconfigured for their network.
+   * A member must be able to fetch the latest storyboard/foundry/canvas/gui
+   * content even if the collab websocket is down or misconfigured for their network.
    */
   async getDocumentContent(
     projectId: string,
@@ -269,11 +270,27 @@ export class CollaborationDocumentsService {
     try {
       bytes = await this.supabase.downloadObject(objectPath, bucket);
     } catch (err) {
-      if (!isStorageObjectNotFoundError(err)) throw err;
-      // A document can exist (registry row created via POST .../documents)
-      // with no saved Yjs bytes yet if no one has opened the live editor —
-      // that's a legitimate empty-content state, not an error.
-      bytes = Buffer.alloc(0);
+      if (
+        isStorageObjectNotFoundError(err) &&
+        document.documentType === 'foundry'
+      ) {
+        try {
+          bytes = await this.supabase.downloadObject(
+            legacyFoundrySnapshotObjectPath({ projectId, documentId }),
+            bucket,
+          );
+        } catch (legacyErr) {
+          if (!isStorageObjectNotFoundError(legacyErr)) throw legacyErr;
+          bytes = Buffer.alloc(0);
+        }
+      } else if (isStorageObjectNotFoundError(err)) {
+        // A document can exist (registry row created via POST .../documents)
+        // with no saved Yjs bytes yet if no one has opened the live editor —
+        // that's a legitimate empty-content state, not an error.
+        bytes = Buffer.alloc(0);
+      } else {
+        throw err;
+      }
     }
 
     return {

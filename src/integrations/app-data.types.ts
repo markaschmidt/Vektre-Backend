@@ -174,7 +174,11 @@ export interface ProjectInviteRow {
 
 // ─── Collaboration documents (Yjs registry) ─────────────────────────────────
 
-export type CollaborationDocumentType = 'storyboard' | 'canvas' | 'gui_screen';
+export type CollaborationDocumentType =
+  | 'storyboard'
+  | 'foundry'
+  | 'canvas'
+  | 'gui_screen';
 
 export interface CollaborationDocumentRow {
   documentKey: string;

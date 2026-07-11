@@ -4,6 +4,7 @@ export { CollaborationDocumentType };
 
 export const COLLABORATION_DOCUMENT_TYPES: readonly CollaborationDocumentType[] = [
   'storyboard',
+  'foundry',
   'canvas',
   'gui_screen',
 ];
@@ -18,7 +19,7 @@ export function isCollaborationDocumentType(
 }
 
 /**
- * Every collaborative area (Storyboard, Canvas, future GUI maker) implements
+ * Every collaborative area (Storyboard, Foundry, Canvas, GUI maker) implements
  * this contract. The backend only validates shape, never editor semantics —
  * new surfaces should not need a new collaboration subsystem, only a new
  * entry here plus frontend Yjs bindings.
@@ -73,28 +74,51 @@ export const SURFACE_REGISTRY: Record<CollaborationDocumentType, CollaborationSu
     reconciliationStrategy:
       'On completion, insert an asset reference/annotation node at the target blockId exactly once (guarded by activityId).',
   },
-  canvas: {
-    documentType: 'canvas',
-    label: 'Canvas',
-    yjsSchemaVersion: 'canvas.v1',
+  foundry: {
+    documentType: 'foundry',
+    label: 'Foundry',
+    yjsSchemaVersion: 'foundry.v1',
     awarenessSchema: {
       description:
-        'Cursor/selection over scene objects, active transform gizmo, and local generation loading state.',
-      fields: ['cursor', 'selectedObjectIds', 'transformState', 'viewport', 'localActivityId'],
+        'Shared 3D/asset viewer selection and collaborative item labels in the foundry room.',
+      fields: ['selectedItemId', 'localActivityId'],
     },
     commentAnchorSchema: {
-      description: 'Anchors a comment to a scene object id, a region, or a 3D/2D point.',
+      description: 'Anchors a comment to a foundry item, asset, or 3D point.',
       requiredFields: [],
-      optionalFields: ['objectId', 'region', 'point'],
+      optionalFields: ['objectId', 'assetId', 'region', 'point'],
     },
     generationTargets: {
       description:
-        'Generated 3D models or images referenced by project_asset id and inserted as scene objects.',
-      activityTypes: ['model_generation', 'image_generation', 'asset_import'],
+        'Generated 3D models referenced by project_asset id and placed in the foundry scene.',
+      activityTypes: ['model_generation', 'asset_import'],
       targetFields: ['objectId', 'placement', 'assetId'],
     },
     reconciliationStrategy:
-      'On completion, insert a scene object referencing the resulting project_asset (never embed binary data) exactly once, guarded by activityId/objectId.',
+      'On completion, reference the resulting project_asset in the foundry room exactly once, guarded by activityId/objectId.',
+  },
+  canvas: {
+    documentType: 'canvas',
+    label: 'Canvas',
+    yjsSchemaVersion: 'canvas.v2',
+    awarenessSchema: {
+      description:
+        'Workflow block graph: selected nodes, pan/zoom viewport, and in-progress generation on a block.',
+      fields: ['selectedBlockIds', 'viewport', 'activeBlockId', 'localActivityId'],
+    },
+    commentAnchorSchema: {
+      description: 'Anchors a comment to a workflow block or canvas region.',
+      requiredFields: [],
+      optionalFields: ['blockId', 'nodeId', 'region'],
+    },
+    generationTargets: {
+      description:
+        'Concept art, character sheets, and other image generation triggered from workflow blocks.',
+      activityTypes: ['image_generation', 'ai_task', 'asset_import'],
+      targetFields: ['blockId', 'nodeId', 'assetId', 'promptHash'],
+    },
+    reconciliationStrategy:
+      'On completion, attach the generated asset output to the target workflow block exactly once, guarded by activityId.',
   },
   gui_screen: {
     documentType: 'gui_screen',

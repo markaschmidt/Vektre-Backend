@@ -48,6 +48,16 @@ export function snapshotObjectPath(
 }
 
 /**
+ * Pre-rename storage path when legacy cloud projects stored the 3D foundry
+ * room under document_type `canvas`. Used as a read fallback only.
+ */
+export function legacyFoundrySnapshotObjectPath(
+  parsed: Pick<ParsedDocumentName, 'projectId' | 'documentId'>,
+): string {
+  return `projects/${parsed.projectId}/docs/canvas/${parsed.documentId}/latest.yjs`;
+}
+
+/**
  * Path for an immutable per-version copy of the Yjs update bytes. The
  * "latest.yjs" object is overwritten on every save, so each
  * collaboration_snapshot row's storage_ref must point here instead — otherwise
@@ -129,6 +139,26 @@ export async function loadDocumentSnapshot(
 
   await ensureDocumentMetadata(client, parsed);
 
+  const bytes = await downloadSnapshotBytes(client, bucket, objectPath);
+  if (bytes === null && parsed.documentType === 'foundry') {
+    const legacyPath = legacyFoundrySnapshotObjectPath(parsed);
+    const legacyBytes = await downloadSnapshotBytes(client, bucket, legacyPath);
+    if (legacyBytes !== null) {
+      Y.applyUpdate(document, legacyBytes);
+    }
+    return;
+  }
+
+  if (bytes === null) return;
+
+  Y.applyUpdate(document, bytes);
+}
+
+async function downloadSnapshotBytes(
+  client: SupabaseClient,
+  bucket: string,
+  objectPath: string,
+): Promise<Uint8Array | null> {
   const { data: blob, error: downloadError } = await client.storage
     .from(bucket)
     .download(objectPath);
@@ -140,15 +170,14 @@ export async function loadDocumentSnapshot(
       message.includes('Not Found') ||
       message.includes('Object not found')
     ) {
-      return;
+      return null;
     }
     throw new Error(`Snapshot download failed (${objectPath}): ${message}`);
   }
 
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  if (bytes.byteLength === 0) return;
-
-  Y.applyUpdate(document, bytes);
+  if (bytes.byteLength === 0) return null;
+  return bytes;
 }
 
 export async function storeDocumentSnapshot(

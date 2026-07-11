@@ -162,8 +162,9 @@ export function toProjectSessionResponse(input: {
     awarenessContract: PROJECT_SESSION_AWARENESS_CONTRACT,
     activeSurfaces: [
       'dashboard',
-      'canvas',
       'storyboard',
+      'foundry',
+      'canvas',
       'gui_screen',
       'repository',
       'settings',

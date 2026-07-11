@@ -9,14 +9,18 @@ import {
 
 describe('document-name', () => {
   it('builds and parses typed collaboration document names', () => {
-    const name = buildDocumentName('proj-1', 'doc-1', 'canvas');
-    expect(name).toBe('project:proj-1:doc:canvas:doc-1');
-    expect(parseDocumentName(name)).toEqual({
+    const foundry = buildDocumentName('proj-1', 'doc-1', 'foundry');
+    expect(foundry).toBe('project:proj-1:doc:foundry:doc-1');
+    expect(parseDocumentName(foundry)?.documentType).toBe('foundry');
+
+    const canvas = buildDocumentName('proj-1', 'doc-2', 'canvas');
+    expect(canvas).toBe('project:proj-1:doc:canvas:doc-2');
+    expect(parseDocumentName(canvas)).toEqual({
       kind: 'document',
       projectId: 'proj-1',
-      documentId: 'doc-1',
+      documentId: 'doc-2',
       documentType: 'canvas',
-      documentKey: 'project:proj-1:doc:canvas:doc-1',
+      documentKey: 'project:proj-1:doc:canvas:doc-2',
     });
   });
 

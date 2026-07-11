@@ -61,7 +61,7 @@ describe('Yjs collaboration smoke test (multi-surface)', () => {
     jest.clearAllMocks();
   });
 
-  it.each(['storyboard', 'canvas', 'gui_screen'] as const)(
+  it.each(['storyboard', 'foundry', 'canvas', 'gui_screen'] as const)(
     'propagates a live edit from one collaborator to another in the same %s document room',
     async (documentType) => {
       const instance = new Hocuspocus({ ...buildCollabHooks() });

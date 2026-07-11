@@ -116,6 +116,47 @@ describe('collab-persistence', () => {
     expect(mockInsert).not.toHaveBeenCalled();
   });
 
+  it('loads legacy canvas storage for foundry rooms when the foundry path is missing', async () => {
+    const foundryParsed: ParsedDocumentName = {
+      kind: 'document',
+      projectId: 'proj-1',
+      documentId: 'doc-1',
+      documentType: 'foundry',
+      documentKey: 'project:proj-1:doc:foundry:doc-1',
+    };
+    const source = new Y.Doc();
+    source.getMap('items').set('item-1', { label: 'Prop' });
+    const update = Y.encodeStateAsUpdate(source);
+
+    mockMaybeSingle.mockResolvedValue({
+      data: { document_id: 'doc-1', storage_ref: null },
+      error: null,
+    });
+    mockDownload.mockImplementation(async (path: string) => {
+      if (path === 'projects/proj-1/docs/foundry/doc-1/latest.yjs') {
+        return { data: null, error: { message: 'Object not found' } };
+      }
+      if (path === 'projects/proj-1/docs/canvas/doc-1/latest.yjs') {
+        return {
+          data: {
+            arrayBuffer: async () =>
+              update.buffer.slice(
+                update.byteOffset,
+                update.byteOffset + update.byteLength,
+              ),
+          },
+          error: null,
+        };
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+
+    const target = new Y.Doc();
+    await loadDocumentSnapshot(foundryParsed, target);
+
+    expect(target.getMap('items').get('item-1')).toEqual({ label: 'Prop' });
+  });
+
   it('registers document metadata on first open even without an existing snapshot', async () => {
     mockMaybeSingle.mockResolvedValue({ data: null, error: null });
     mockDownload.mockResolvedValue({ data: null, error: { message: 'Object not found' } });

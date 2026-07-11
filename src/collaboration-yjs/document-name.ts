@@ -1,4 +1,8 @@
-export type CollaborationDocumentType = 'storyboard' | 'canvas' | 'gui_screen';
+export type CollaborationDocumentType =
+  | 'storyboard'
+  | 'foundry'
+  | 'canvas'
+  | 'gui_screen';
 
 export type CollabRoomKind = 'session' | 'document';
 
@@ -26,7 +30,7 @@ export type ParsedDocumentName = ParsedDocumentRoom;
 const SESSION_ROOM_RE = /^project:([^:]+):session$/;
 const DOCUMENT_NAME_RE = /^project:([^:]+):doc:([^:]+)$/;
 const TYPED_DOCUMENT_NAME_RE =
-  /^project:([^:]+):doc:(storyboard|canvas|gui_screen):([^:]+)$/;
+  /^project:([^:]+):doc:(storyboard|foundry|canvas|gui_screen):([^:]+)$/;
 
 export function buildSessionRoomName(projectId: string): string {
   return `project:${projectId}:session`;
