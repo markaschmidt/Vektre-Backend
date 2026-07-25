@@ -219,8 +219,8 @@ export class ImportGeneratedAssetDto {
   @IsUrl()
   sourceUrl!: string;
 
-  @IsEnum(['replicate', 'openai'])
-  sourceProvider!: 'replicate' | 'openai';
+  @IsEnum(['replicate', 'openai', 'riganything'])
+  sourceProvider!: 'replicate' | 'openai' | 'riganything';
 
   @IsOptional()
   @IsString()

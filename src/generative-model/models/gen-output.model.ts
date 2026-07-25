@@ -18,4 +18,6 @@ export interface GeneratedAssetRef {
 export interface ConceptArtResult {
   assetRef: GeneratedAssetRef;
   revisedPrompt?: string;
+  /** Raw PNG bytes from the provider — callers persist into project storage. */
+  imageBytesBase64: string;
 }

@@ -11,6 +11,10 @@ import type {
   ProjectWorkspaceMode,
   RequestStatus,
   RequestStatusRow,
+  RiggingJobRow,
+  RiggingJobStatus,
+  Mesh2MotionJobRow,
+  Mesh2MotionJobStatus,
   ShareLinkRole,
   ShareLinkRow,
   UserProfileRow,
@@ -24,6 +28,7 @@ import type {
   CollaborationActivityType,
   CollaborationActivityStatus,
   CollaborationActivityRow,
+  GenerationUsageEventRow,
 } from './app-data.types.js';
 
 @Injectable()
@@ -103,6 +108,58 @@ export class AppDataService {
     }
 
     return this.getRequestStatus(requestId);
+  }
+
+  // ─── Generation usage / cost events ───────────────────────────────────────
+
+  async upsertGenerationUsageEvent(
+    row: Omit<GenerationUsageEventRow, 'createdAt'> & { createdAt?: Date },
+  ): Promise<void> {
+    const now = (row.createdAt ?? new Date()).toISOString();
+    const { error } = await this.db()
+      .from('generation_usage_event')
+      .upsert(
+        {
+          event_id: row.eventId,
+          request_id: row.requestId,
+          project_id: row.projectId,
+          actor_user_id: row.actorUserId,
+          provider: row.provider,
+          model_id: row.modelId ?? null,
+          surface: row.surface,
+          action_kind: row.actionKind ?? null,
+          request_type: row.requestType,
+          usage_json: row.usage,
+          estimated_cost_usd: row.estimatedCostUsd,
+          currency: row.currency,
+          billable: row.billable,
+          created_at: now,
+        },
+        { onConflict: 'request_id', ignoreDuplicates: true },
+      );
+    throwOnError('upsertGenerationUsageEvent', error);
+  }
+
+  async listGenerationUsageEvents(
+    projectId: string,
+    opts: { since?: Date; billableOnly?: boolean } = {},
+  ): Promise<GenerationUsageEventRow[]> {
+    let query = this.db()
+      .from('generation_usage_event')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+
+    if (opts.billableOnly) {
+      query = query.eq('billable', true);
+    }
+    if (opts.since) {
+      query = query.gte('created_at', opts.since.toISOString());
+    }
+
+    const { data, error } = await query;
+    throwOnError('listGenerationUsageEvents', error);
+    return (data ?? []).map(mapGenerationUsageEventRow);
   }
 
   // ─── User Profile ─────────────────────────────────────────────────────────
@@ -523,7 +580,10 @@ export class AppDataService {
 
   async upsertProjectAsset(row: {
     assetId: string;
-    projectId: string;
+    /** Cloud project id. Omit/null when using localProjectId. */
+    projectId?: string | null;
+    localProjectId?: string | null;
+    ownerUserId?: string | null;
     uploadedByUserId: string;
     assetType: string;
     name: string;
@@ -538,17 +598,31 @@ export class AppDataService {
     requestId?: string;
     promptHash?: string;
     metadata?: Record<string, unknown>;
+    status?: ProjectAssetStatus;
   }): Promise<ProjectAssetRow> {
-    this.logger.debug(`upsertProjectAsset: ${row.projectId} / ${row.assetId}`);
+    const hasCloud = Boolean(row.projectId);
+    const hasLocal = Boolean(row.localProjectId);
+    if (hasCloud === hasLocal) {
+      throw new Error(
+        'upsertProjectAsset requires exactly one of projectId or localProjectId',
+      );
+    }
+    this.logger.debug(
+      `upsertProjectAsset: ${row.projectId ?? row.localProjectId} / ${row.assetId}`,
+    );
     const existing = await this.getProjectAsset(row.assetId);
     const now = new Date().toISOString();
     const bucket = row.bucket ?? this.supabase.getStorageBucket();
+    const ownerUserId =
+      row.ownerUserId ?? existing?.ownerUserId ?? row.uploadedByUserId;
 
     const { data, error } = await this.db()
       .from('project_asset')
       .upsert({
         asset_id: row.assetId,
-        project_id: row.projectId,
+        project_id: row.projectId ?? null,
+        local_project_id: row.localProjectId ?? null,
+        owner_user_id: ownerUserId,
         uploaded_by_user_id: row.uploadedByUserId,
         asset_type: row.assetType,
         name: row.name.trim(),
@@ -559,7 +633,7 @@ export class AppDataService {
         object_path: row.objectPath ?? null,
         public_url: row.publicUrl ?? null,
         checksum: row.checksum ?? null,
-        status: existing?.status ?? 'generating',
+        status: row.status ?? existing?.status ?? 'generating',
         source_provider: row.sourceProvider ?? null,
         request_id: row.requestId ?? null,
         prompt_hash: row.promptHash ?? null,
@@ -618,6 +692,207 @@ export class AppDataService {
       .maybeSingle();
     throwOnError('removeProjectAsset', error);
     return data ? mapProjectAssetRow(data) : null;
+  }
+
+  async removeLocalProjectAsset(
+    localProjectId: string,
+    ownerUserId: string,
+    assetId: string,
+  ): Promise<ProjectAssetRow | null> {
+    const existing = await this.getProjectAsset(assetId);
+    if (
+      !existing ||
+      existing.localProjectId !== localProjectId ||
+      existing.ownerUserId !== ownerUserId
+    ) {
+      return null;
+    }
+    const { data, error } = await this.db()
+      .from('project_asset')
+      .update({ status: 'deleted', updated_at: new Date().toISOString() })
+      .eq('asset_id', assetId)
+      .select('*')
+      .maybeSingle();
+    throwOnError('removeLocalProjectAsset', error);
+    return data ? mapProjectAssetRow(data) : null;
+  }
+
+  // ─── Rigging jobs ─────────────────────────────────────────────────────────
+
+  async createRiggingJob(
+    row: Omit<RiggingJobRow, 'createdAt' | 'updatedAt'>,
+  ): Promise<RiggingJobRow> {
+    const now = new Date().toISOString();
+    const { data, error } = await this.db()
+      .from('rigging_job')
+      .upsert({
+        job_id: row.jobId,
+        user_id: row.userId,
+        project_id: row.projectId ?? null,
+        local_project_id: row.localProjectId ?? null,
+        source_asset_id: row.sourceAssetId,
+        output_asset_id: row.outputAssetId,
+        worker_job_id: row.workerJobId ?? null,
+        idempotency_key: row.idempotencyKey ?? null,
+        status: row.status,
+        simplify: row.simplify,
+        target_face_count: row.targetFaceCount,
+        error_message: row.errorMessage ?? null,
+        result_json: row.resultJson ?? null,
+        created_at: now,
+        updated_at: now,
+      })
+      .select('*')
+      .single();
+    throwOnError('createRiggingJob', error);
+    return mapRiggingJobRow(data);
+  }
+
+  async getRiggingJob(jobId: string): Promise<RiggingJobRow | null> {
+    const { data, error } = await this.db()
+      .from('rigging_job')
+      .select('*')
+      .eq('job_id', jobId)
+      .maybeSingle();
+    throwOnError('getRiggingJob', error);
+    return data ? mapRiggingJobRow(data) : null;
+  }
+
+  async getRiggingJobByIdempotencyKey(
+    key: string,
+  ): Promise<RiggingJobRow | null> {
+    const { data, error } = await this.db()
+      .from('rigging_job')
+      .select('*')
+      .eq('idempotency_key', key)
+      .maybeSingle();
+    throwOnError('getRiggingJobByIdempotencyKey', error);
+    return data ? mapRiggingJobRow(data) : null;
+  }
+
+  async updateRiggingJob(
+    jobId: string,
+    patch: Partial<
+      Pick<
+        RiggingJobRow,
+        | 'status'
+        | 'workerJobId'
+        | 'errorMessage'
+        | 'resultJson'
+        | 'idempotencyKey'
+      >
+    >,
+  ): Promise<RiggingJobRow | null> {
+    const update: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (patch.status !== undefined) update.status = patch.status;
+    if (patch.workerJobId !== undefined) update.worker_job_id = patch.workerJobId;
+    if (patch.errorMessage !== undefined) {
+      update.error_message = patch.errorMessage;
+    }
+    if (patch.resultJson !== undefined) update.result_json = patch.resultJson;
+    if (patch.idempotencyKey !== undefined) {
+      update.idempotency_key = patch.idempotencyKey;
+    }
+
+    const { data, error } = await this.db()
+      .from('rigging_job')
+      .update(update)
+      .eq('job_id', jobId)
+      .select('*')
+      .maybeSingle();
+    throwOnError('updateRiggingJob', error);
+    return data ? mapRiggingJobRow(data) : null;
+  }
+
+  // ─── Mesh2Motion jobs ─────────────────────────────────────────────────────
+
+  async createMesh2MotionJob(
+    row: Omit<Mesh2MotionJobRow, 'createdAt' | 'updatedAt'>,
+  ): Promise<Mesh2MotionJobRow> {
+    const now = new Date().toISOString();
+    const { data, error } = await this.db()
+      .from('mesh2motion_job')
+      .upsert({
+        job_id: row.jobId,
+        user_id: row.userId,
+        project_id: row.projectId ?? null,
+        local_project_id: row.localProjectId ?? null,
+        source_asset_id: row.sourceAssetId,
+        output_asset_id: row.outputAssetId,
+        worker_job_id: row.workerJobId ?? null,
+        idempotency_key: row.idempotencyKey ?? null,
+        status: row.status,
+        skeleton_type: row.skeletonType,
+        animation_names: row.animationNames ?? null,
+        error_message: row.errorMessage ?? null,
+        result_json: row.resultJson ?? null,
+        created_at: now,
+        updated_at: now,
+      })
+      .select('*')
+      .single();
+    throwOnError('createMesh2MotionJob', error);
+    return mapMesh2MotionJobRow(data);
+  }
+
+  async getMesh2MotionJob(jobId: string): Promise<Mesh2MotionJobRow | null> {
+    const { data, error } = await this.db()
+      .from('mesh2motion_job')
+      .select('*')
+      .eq('job_id', jobId)
+      .maybeSingle();
+    throwOnError('getMesh2MotionJob', error);
+    return data ? mapMesh2MotionJobRow(data) : null;
+  }
+
+  async getMesh2MotionJobByIdempotencyKey(
+    key: string,
+  ): Promise<Mesh2MotionJobRow | null> {
+    const { data, error } = await this.db()
+      .from('mesh2motion_job')
+      .select('*')
+      .eq('idempotency_key', key)
+      .maybeSingle();
+    throwOnError('getMesh2MotionJobByIdempotencyKey', error);
+    return data ? mapMesh2MotionJobRow(data) : null;
+  }
+
+  async updateMesh2MotionJob(
+    jobId: string,
+    patch: Partial<
+      Pick<
+        Mesh2MotionJobRow,
+        | 'status'
+        | 'workerJobId'
+        | 'errorMessage'
+        | 'resultJson'
+        | 'idempotencyKey'
+      >
+    >,
+  ): Promise<Mesh2MotionJobRow | null> {
+    const update: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (patch.status !== undefined) update.status = patch.status;
+    if (patch.workerJobId !== undefined) update.worker_job_id = patch.workerJobId;
+    if (patch.errorMessage !== undefined) {
+      update.error_message = patch.errorMessage;
+    }
+    if (patch.resultJson !== undefined) update.result_json = patch.resultJson;
+    if (patch.idempotencyKey !== undefined) {
+      update.idempotency_key = patch.idempotencyKey;
+    }
+
+    const { data, error } = await this.db()
+      .from('mesh2motion_job')
+      .update(update)
+      .eq('job_id', jobId)
+      .select('*')
+      .maybeSingle();
+    throwOnError('updateMesh2MotionJob', error);
+    return data ? mapMesh2MotionJobRow(data) : null;
   }
 
   // ─── Generative Model Requests ───────────────────────────────────────────
@@ -1268,6 +1543,10 @@ export class AppDataService {
     status?: CollaborationActivityStatus;
     target?: Record<string, unknown>;
     result?: Record<string, unknown>;
+    workflowId?: string;
+    nodeId?: string;
+    runId?: string;
+    actionKind?: string;
   }): Promise<CollaborationActivityRow> {
     this.logger.debug(`createCollaborationActivity: ${row.activityId} (${row.activityType})`);
     const now = new Date().toISOString();
@@ -1284,6 +1563,10 @@ export class AppDataService {
         status: row.status ?? 'pending',
         target_json: row.target ?? null,
         result_json: row.result ?? null,
+        workflow_id: row.workflowId ?? null,
+        node_id: row.nodeId ?? null,
+        run_id: row.runId ?? null,
+        action_kind: row.actionKind ?? null,
         created_at: now,
         updated_at: now,
       })
@@ -1291,6 +1574,22 @@ export class AppDataService {
       .single();
     throwOnError('createCollaborationActivity', error);
     return mapCollaborationActivityRow(data);
+  }
+
+  async getCollaborationActivityByRunId(
+    projectId: string,
+    documentId: string,
+    runId: string,
+  ): Promise<CollaborationActivityRow | null> {
+    const { data, error } = await this.db()
+      .from('collaboration_activity')
+      .select('*')
+      .eq('project_id', projectId)
+      .eq('document_id', documentId)
+      .eq('run_id', runId)
+      .maybeSingle();
+    throwOnError('getCollaborationActivityByRunId', error);
+    return data ? mapCollaborationActivityRow(data) : null;
   }
 
   async getCollaborationActivity(activityId: string): Promise<CollaborationActivityRow | null> {
@@ -1488,6 +1787,27 @@ function mapRequestStatusRow(row: Record<string, unknown>): RequestStatusRow {
   };
 }
 
+function mapGenerationUsageEventRow(
+  row: Record<string, unknown>,
+): GenerationUsageEventRow {
+  return {
+    eventId: row.event_id as string,
+    requestId: row.request_id as string,
+    projectId: row.project_id as string,
+    actorUserId: row.actor_user_id as string,
+    provider: row.provider as string,
+    modelId: (row.model_id as string | null) ?? undefined,
+    surface: row.surface as string,
+    actionKind: (row.action_kind as string | null) ?? undefined,
+    requestType: row.request_type as string,
+    usage: (row.usage_json as Record<string, unknown>) ?? {},
+    estimatedCostUsd: Number(row.estimated_cost_usd ?? 0),
+    currency: (row.currency as string) ?? 'USD',
+    billable: Boolean(row.billable),
+    createdAt: new Date(row.created_at as string),
+  };
+}
+
 function mapUserProfileRow(row: Record<string, unknown>): UserProfileRow {
   const onDemandRaw = row.on_demand_json as { monthlyCap?: number | null } | null;
   return {
@@ -1539,7 +1859,9 @@ function mapProjectMemberRow(row: Record<string, unknown>): ProjectMemberRow {
 function mapProjectAssetRow(row: Record<string, unknown>): ProjectAssetRow {
   return {
     assetId: row.asset_id as string,
-    projectId: row.project_id as string,
+    projectId: (row.project_id as string | null) ?? null,
+    localProjectId: (row.local_project_id as string | null) ?? null,
+    ownerUserId: (row.owner_user_id as string | null) ?? null,
     uploadedByUserId: row.uploaded_by_user_id as string,
     assetType: row.asset_type as string,
     name: row.name as string,
@@ -1555,6 +1877,52 @@ function mapProjectAssetRow(row: Record<string, unknown>): ProjectAssetRow {
     requestId: (row.request_id as string | null) ?? undefined,
     promptHash: (row.prompt_hash as string | null) ?? undefined,
     metadata: (row.metadata_json as Record<string, unknown> | null) ?? undefined,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  };
+}
+
+function mapRiggingJobRow(row: Record<string, unknown>): RiggingJobRow {
+  return {
+    jobId: row.job_id as string,
+    userId: row.user_id as string,
+    projectId: (row.project_id as string | null) ?? null,
+    localProjectId: (row.local_project_id as string | null) ?? null,
+    sourceAssetId: row.source_asset_id as string,
+    outputAssetId: row.output_asset_id as string,
+    workerJobId: (row.worker_job_id as string | null) ?? null,
+    idempotencyKey: (row.idempotency_key as string | null) ?? null,
+    status: row.status as RiggingJobStatus,
+    simplify: Boolean(row.simplify),
+    targetFaceCount: Number(row.target_face_count ?? 8192),
+    errorMessage: (row.error_message as string | null) ?? null,
+    resultJson: (row.result_json as Record<string, unknown> | null) ?? null,
+    createdAt: new Date(row.created_at as string),
+    updatedAt: new Date(row.updated_at as string),
+  };
+}
+
+function mapMesh2MotionJobRow(row: Record<string, unknown>): Mesh2MotionJobRow {
+  const rawNames = row.animation_names;
+  let animationNames: string[] | null = null;
+  if (Array.isArray(rawNames)) {
+    animationNames = rawNames.filter((n): n is string => typeof n === 'string');
+  }
+
+  return {
+    jobId: row.job_id as string,
+    userId: row.user_id as string,
+    projectId: (row.project_id as string | null) ?? null,
+    localProjectId: (row.local_project_id as string | null) ?? null,
+    sourceAssetId: row.source_asset_id as string,
+    outputAssetId: row.output_asset_id as string,
+    workerJobId: (row.worker_job_id as string | null) ?? null,
+    idempotencyKey: (row.idempotency_key as string | null) ?? null,
+    status: row.status as Mesh2MotionJobStatus,
+    skeletonType: row.skeleton_type as string,
+    animationNames,
+    errorMessage: (row.error_message as string | null) ?? null,
+    resultJson: (row.result_json as Record<string, unknown> | null) ?? null,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
@@ -1639,6 +2007,10 @@ function mapCollaborationActivityRow(row: Record<string, unknown>): Collaboratio
     result: (row.result_json as Record<string, unknown> | null) ?? undefined,
     errorMessage: (row.error_message as string | null) ?? undefined,
     reconciledAt: row.reconciled_at ? new Date(row.reconciled_at as string) : undefined,
+    workflowId: (row.workflow_id as string | null) ?? undefined,
+    nodeId: (row.node_id as string | null) ?? undefined,
+    runId: (row.run_id as string | null) ?? undefined,
+    actionKind: (row.action_kind as string | null) ?? undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };

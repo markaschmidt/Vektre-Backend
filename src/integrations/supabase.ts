@@ -231,6 +231,74 @@ export class SupabaseService {
     }
   }
 
+  /**
+   * Create a short-lived signed download URL for an existing object.
+   */
+  async createSignedDownloadUrl(
+    objectPath: string,
+    expiresInSeconds: number,
+    bucket = this.getStorageBucket(),
+  ): Promise<string> {
+    const { data, error } = await this.client.storage
+      .from(bucket)
+      .createSignedUrl(objectPath, expiresInSeconds);
+    if (error || !data?.signedUrl) {
+      throw new Error(
+        `Failed to sign download URL (${objectPath}): ${error?.message ?? 'empty'}`,
+      );
+    }
+    return data.signedUrl;
+  }
+
+  /**
+   * Create a signed upload URL (PUT) valid for ~2 hours.
+   * Pass upsert=true so retries can overwrite a reserved path.
+   */
+  async createSignedUploadUrl(
+    objectPath: string,
+    bucket = this.getStorageBucket(),
+    options: { upsert?: boolean } = { upsert: true },
+  ): Promise<{ signedUrl: string; token: string; path: string }> {
+    const { data, error } = await this.client.storage
+      .from(bucket)
+      .createSignedUploadUrl(objectPath, { upsert: options.upsert ?? true });
+    if (error || !data?.signedUrl) {
+      throw new Error(
+        `Failed to sign upload URL (${objectPath}): ${error?.message ?? 'empty'}`,
+      );
+    }
+    return {
+      signedUrl: data.signedUrl,
+      token: data.token,
+      path: data.path,
+    };
+  }
+
+  /**
+   * True when the object exists in storage (used to verify worker PUT).
+   */
+  async objectExists(
+    objectPath: string,
+    bucket = this.getStorageBucket(),
+  ): Promise<boolean> {
+    const folder = objectPath.includes('/')
+      ? objectPath.slice(0, objectPath.lastIndexOf('/'))
+      : '';
+    const name = objectPath.includes('/')
+      ? objectPath.slice(objectPath.lastIndexOf('/') + 1)
+      : objectPath;
+    const { data, error } = await this.client.storage.from(bucket).list(folder, {
+      search: name,
+      limit: 100,
+    });
+    if (error) {
+      throw new Error(
+        `Supabase storage exists check failed (${objectPath}): ${error.message}`,
+      );
+    }
+    return (data ?? []).some((entry) => entry.name === name);
+  }
+
   private toAuthenticatedUser(user: User): AuthenticatedUser {
     const meta = user.user_metadata ?? {};
     return {

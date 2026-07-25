@@ -723,6 +723,8 @@ export class CollaborationDocumentsService {
         : asset
           ? `${asset.assetId}-preview`
           : undefined;
+    // Canvas action processors may already have written a rich result
+    // (including multi-output `outputs[]`). Merge without dropping those fields.
     const updated = await this.appData.updateCollaborationActivity(activityId, {
       status: 'completed',
       result: {
@@ -740,6 +742,17 @@ export class CollaborationDocumentsService {
           : {}),
         outputRef: request.outputRef,
         ...(request.resultJson ?? {}),
+        ...(activity.result?.outputs
+          ? { outputs: activity.result.outputs }
+          : {}),
+        ...(activity.workflowId
+          ? {
+              workflowId: activity.workflowId,
+              nodeId: activity.nodeId,
+              runId: activity.runId,
+              actionKind: activity.actionKind,
+            }
+          : {}),
       },
     });
     return toCollaborationActivityResponse(updated ?? activity);

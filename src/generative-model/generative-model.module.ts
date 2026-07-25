@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule } from '@nestjs/config';
 import { GenerativeModelController } from './generative-model.controller.js';
@@ -10,20 +10,31 @@ import { MODEL_PROVIDER_ADAPTERS } from './providers/model-provider.interface.js
 import { GENERATIVE_MODEL_QUEUE } from '../queues/queue-names.js';
 import { IntegrationsModule } from '../integrations/integrations.module.js';
 import { ReplicateProviderAdapter } from '../integrations/replicate.provider.js';
+import { ProjectsModule } from '../projects/projects.module.js';
+import { CanvasWorkflowsModule } from '../canvas-workflows/canvas-workflows.module.js';
+import { GenerationCostEstimator } from './cost/generation-cost.estimator.js';
+import { GenerationCostService } from './cost/generation-cost.service.js';
+import { ProjectGenerationCostsFacade } from './cost/project-generation-costs.facade.js';
+import { ProjectGenerationCostsController } from './cost/project-generation-costs.controller.js';
 
 @Module({
   imports: [
     BullModule.registerQueue({ name: GENERATIVE_MODEL_QUEUE }),
     IntegrationsModule,
     ConfigModule,
+    ProjectsModule,
+    forwardRef(() => CanvasWorkflowsModule),
   ],
-  controllers: [GenerativeModelController],
+  controllers: [GenerativeModelController, ProjectGenerationCostsController],
   providers: [
     GenerativeModelService,
     GenerativeModelProcessor,
     ReplicateProviderAdapter,
     OpenAiProviderAdapter,
     OllamaProviderAdapter,
+    GenerationCostEstimator,
+    GenerationCostService,
+    ProjectGenerationCostsFacade,
     {
       provide: MODEL_PROVIDER_ADAPTERS,
       useFactory: (openai: OpenAiProviderAdapter) => {
@@ -34,5 +45,6 @@ import { ReplicateProviderAdapter } from '../integrations/replicate.provider.js'
       inject: [OpenAiProviderAdapter],
     },
   ],
+  exports: [GenerativeModelService, GenerationCostService, ProjectGenerationCostsFacade],
 })
 export class GenerativeModelModule {}

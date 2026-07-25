@@ -281,6 +281,10 @@ export interface CollaborationActivityResponse {
   errorMessage?: string;
   reconciled: boolean;
   reconciledAt?: string;
+  workflowId?: string;
+  nodeId?: string;
+  runId?: string;
+  actionKind?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -302,6 +306,10 @@ export function toCollaborationActivityResponse(
     errorMessage: row.errorMessage,
     reconciled: Boolean(row.reconciledAt),
     reconciledAt: row.reconciledAt?.toISOString(),
+    workflowId: row.workflowId,
+    nodeId: row.nodeId,
+    runId: row.runId,
+    actionKind: row.actionKind,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

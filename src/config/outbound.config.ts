@@ -9,11 +9,23 @@ export interface OutboundProviderConfig {
 export interface ReplicateConfig extends OutboundProviderConfig {
   token: string;
   baseUrl: string;
+  /** Replicate model slug for FLUX.2 concept art (e.g. black-forest-labs/flux-2-pro). */
+  fluxModel: string;
 }
 
 export interface OpenAiConfig extends OutboundProviderConfig {
   apiKey: string;
   baseUrl: string;
+  /** GPT Image model id (gpt-image-2, gpt-image-1, gpt-image-1-mini, …). */
+  imageModel: string;
+  /** Default quality for GPT Image generations. */
+  imageQuality: 'low' | 'medium' | 'high' | 'auto';
+  /** Default size for GPT Image generations. */
+  imageSize: '1024x1024' | '1024x1536' | '1536x1024' | 'auto';
+  /** Outbound timeout for low / medium / auto GPT Image runs. */
+  imageTimeoutMs: number;
+  /** Outbound timeout when quality is explicitly high (much slower). */
+  imageHighTimeoutMs: number;
 }
 
 export interface OllamaConfig extends OutboundProviderConfig {
@@ -34,12 +46,22 @@ export interface NotionConfig {
   timeoutMs: number;
 }
 
+export interface GenerationPricingConfig {
+  openaiTextInputPer1M: number;
+  openaiImageInputPer1M: number;
+  openaiImageOutputPer1M: number;
+  openaiInputBlendedPer1M: number;
+  replicateDefaultUsdPerSecond: number;
+  replicateModelUsdPerSecond: Record<string, number>;
+}
+
 export interface OutboundConfig {
   replicate: ReplicateConfig;
   openai: OpenAiConfig;
   ollama: OllamaConfig;
   google: GoogleConfig;
   notion: NotionConfig;
+  generationPricing: GenerationPricingConfig;
 }
 
 /**
@@ -81,6 +103,9 @@ export const outboundConfig = registerAs('outbound', (): OutboundConfig => {
       timeoutMs: Number(process.env['REPLICATE_TIMEOUT_MS'] ?? 120_000),
       maxRetries: Number(process.env['REPLICATE_MAX_RETRIES'] ?? 5),
       backoffMs: Number(process.env['REPLICATE_BACKOFF_MS'] ?? 2_000),
+      fluxModel:
+        process.env['REPLICATE_FLUX_MODEL'] ??
+        'black-forest-labs/flux-2-pro',
     },
     openai: {
       apiKey: openaiApiKey!,
@@ -88,6 +113,17 @@ export const outboundConfig = registerAs('outbound', (): OutboundConfig => {
       timeoutMs: Number(process.env['OPENAI_TIMEOUT_MS'] ?? 90_000),
       maxRetries: Number(process.env['OPENAI_MAX_RETRIES'] ?? 3),
       backoffMs: Number(process.env['OPENAI_BACKOFF_MS'] ?? 1_000),
+      imageModel: process.env['OPENAI_IMAGE_MODEL'] ?? 'gpt-image-2',
+      imageQuality: parseOpenAiImageQuality(
+        process.env['OPENAI_IMAGE_QUALITY'],
+      ),
+      imageSize: parseOpenAiImageSize(process.env['OPENAI_IMAGE_SIZE']),
+      imageTimeoutMs: Number(
+        process.env['OPENAI_IMAGE_TIMEOUT_MS'] ?? 180_000,
+      ),
+      imageHighTimeoutMs: Number(
+        process.env['OPENAI_IMAGE_HIGH_TIMEOUT_MS'] ?? 600_000,
+      ),
     },
     ollama: {
       baseUrl: ollamaBaseUrl ?? 'http://localhost:11434',
@@ -109,5 +145,66 @@ export const outboundConfig = registerAs('outbound', (): OutboundConfig => {
         'http://localhost:3001/integrations/notion/oauth/callback',
       timeoutMs: Number(process.env['NOTION_TIMEOUT_MS'] ?? 30_000),
     },
+    generationPricing: {
+      // GPT Image list prices ($ / 1M tokens) — override via env as vendors change rates.
+      openaiTextInputPer1M: Number(
+        process.env['COST_OPENAI_TEXT_INPUT_PER_1M'] ?? 5,
+      ),
+      openaiImageInputPer1M: Number(
+        process.env['COST_OPENAI_IMAGE_INPUT_PER_1M'] ?? 8,
+      ),
+      openaiImageOutputPer1M: Number(
+        process.env['COST_OPENAI_IMAGE_OUTPUT_PER_1M'] ?? 30,
+      ),
+      openaiInputBlendedPer1M: Number(
+        process.env['COST_OPENAI_INPUT_BLENDED_PER_1M'] ?? 5,
+      ),
+      // Replicate has no per-prediction $ field; estimate from predict_time × $/sec.
+      replicateDefaultUsdPerSecond: Number(
+        process.env['COST_REPLICATE_USD_PER_SEC'] ?? 0.002,
+      ),
+      replicateModelUsdPerSecond: parseUsdPerSecondMap(
+        process.env['COST_REPLICATE_MODEL_USD_PER_SEC_JSON'],
+      ),
+    },
   };
 });
+
+function parseUsdPerSecondMap(raw: string | undefined): Record<string, number> {
+  const defaults: Record<string, number> = {
+    'tencent/hunyuan-3d-3.1': 0.002,
+    'tencent/hunyuan3d-2mv': 0.001,
+    'black-forest-labs/flux-2-pro': 0.003,
+  };
+  if (!raw) return defaults;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out = { ...defaults };
+    for (const [k, v] of Object.entries(parsed)) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0) out[k] = n;
+    }
+    return out;
+  } catch {
+    return defaults;
+  }
+}
+
+function parseOpenAiImageQuality(
+  raw: string | undefined,
+): OpenAiConfig['imageQuality'] {
+  const allowed = new Set(['low', 'medium', 'high', 'auto']);
+  if (raw && allowed.has(raw)) return raw as OpenAiConfig['imageQuality'];
+  return 'medium';
+}
+
+function parseOpenAiImageSize(raw: string | undefined): OpenAiConfig['imageSize'] {
+  const allowed = new Set([
+    '1024x1024',
+    '1024x1536',
+    '1536x1024',
+    'auto',
+  ]);
+  if (raw && allowed.has(raw)) return raw as OpenAiConfig['imageSize'];
+  return '1024x1024';
+}

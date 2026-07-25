@@ -1,6 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ReplicateConfig } from '../config/outbound.config.js';
+import {
+  HUNYUAN_2MV_DEFAULT_OPTIONS,
+  type Hunyuan2mvGenerationOptions,
+} from '../generative-model/hunyuan-2mv-options.js';
+import {
+  HUNYUAN_3D_DEFAULT_OPTIONS,
+  type Hunyuan3dGenerationOptions,
+  type HunyuanGenerateType,
+} from '../generative-model/hunyuan-3d-options.js';
+import {
+  HUNYUAN_REPLICATE_MODEL_2MV,
+  HUNYUAN_REPLICATE_MODEL_3_1,
+  type HunyuanMultiviewUrls,
+} from '../generative-model/hunyuan-3d-model.js';
 import { outboundJson } from './outbound-http.js';
 import { ProviderError } from './provider-error.model.js';
 
@@ -35,6 +49,11 @@ export interface ReplicatePrediction {
   output?: unknown;
   error?: string | null;
   urls?: { get?: string; cancel?: string };
+  /**
+   * Present on terminated predictions. Includes predict_time / total_time
+   * (seconds). Replicate does NOT return a dollar cost field.
+   */
+  metrics?: { predict_time?: number; total_time?: number; [k: string]: unknown };
 }
 
 export interface NormalisedPrediction {
@@ -42,8 +61,12 @@ export interface NormalisedPrediction {
   status: NormalisedStatus;
   modelUrls: string[];
   previewUrls: string[];
+  /** All http(s) URLs found in the output, regardless of extension. */
+  outputUrls: string[];
   errorMessage?: string;
   cancelUrl?: string;
+  /** Raw Replicate metrics (predict_time, total_time) when present. */
+  metrics?: { predict_time?: number; total_time?: number; [k: string]: unknown };
 }
 
 /**
@@ -51,9 +74,9 @@ export interface NormalisedPrediction {
  * Matches the Rust prepare_hunyuan_input() / ai_generate_3d_model behaviour.
  */
 export interface HunyuanInput {
-  enable_pbr: false;
-  face_count: 500000;
-  generate_type: 'Normal';
+  enable_pbr: boolean;
+  face_count: number;
+  generate_type: HunyuanGenerateType;
   /** Present for image-to-3D mode. Never set alongside prompt. */
   image?: string;
   /** Present for text-to-3D mode. Never set alongside image. */
@@ -84,19 +107,24 @@ export class ReplicateProviderAdapter {
    * Returns the prediction ID for polling via `pollPrediction`.
    *
    * Mirrors Rust ai_generate_3d_model():
-   * - Always sends enable_pbr=false, face_count=500000, generate_type=Normal.
+   * - Sends face_count / generate_type / enable_pbr from caller (Prop default: 40k / Geometry).
    * - Sends exactly ONE of `image` or `prompt` — never both.
    * - Does NOT forward requestId/userId into the Replicate input body.
    */
   async startHunyuan3dPrediction(opts: {
     image?: string;
     prompt?: string;
+    generation?: Hunyuan3dGenerationOptions;
     requestId: string;
     userId: string;
   }): Promise<string> {
-    const url = `${this.cfg.baseUrl}/v1/models/tencent/hunyuan-3d-3.1/predictions`;
+    const url = `${this.cfg.baseUrl}/v1/models/${HUNYUAN_REPLICATE_MODEL_3_1}/predictions`;
 
-    const input = buildHunyuanInput(opts.image, opts.prompt);
+    const input = buildHunyuanInput(
+      opts.image,
+      opts.prompt,
+      opts.generation ?? HUNYUAN_3D_DEFAULT_OPTIONS,
+    );
 
     const { data } = await outboundJson<ReplicatePrediction>({
       provider: PROVIDER,
@@ -119,6 +147,110 @@ export class ReplicateProviderAdapter {
         predictionId: data.id,
         requestId: opts.requestId,
         userId: opts.userId,
+        model: HUNYUAN_REPLICATE_MODEL_3_1,
+      }),
+    );
+
+    return data.id;
+  }
+
+  /**
+   * Kick off a Hunyuan3D-2mv multiview prediction on Replicate.
+   * Requires at least one view URL; best results with front/back/left/right.
+   */
+  async startHunyuan2mvPrediction(opts: {
+    views: HunyuanMultiviewUrls;
+    generation?: Hunyuan2mvGenerationOptions;
+    requestId: string;
+    userId: string;
+  }): Promise<string> {
+    const url = `${this.cfg.baseUrl}/v1/models/${HUNYUAN_REPLICATE_MODEL_2MV}/predictions`;
+    const input = buildHunyuan2mvInput(
+      opts.views,
+      opts.generation,
+    );
+
+    const { data } = await outboundJson<ReplicatePrediction>({
+      provider: PROVIDER,
+      url,
+      method: 'POST',
+      headers: this.authHeaders(),
+      body: { input },
+      timeoutMs: this.cfg.timeoutMs,
+      requestId: opts.requestId,
+      userId: opts.userId,
+    });
+
+    if (!data.id) {
+      throw ProviderError.permanent(PROVIDER, 'Replicate did not return prediction ID');
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'replicate_prediction_started',
+        predictionId: data.id,
+        requestId: opts.requestId,
+        userId: opts.userId,
+        model: HUNYUAN_REPLICATE_MODEL_2MV,
+        viewCount: Object.keys(input).filter((k) => k.endsWith('_image')).length,
+      }),
+    );
+
+    return data.id;
+  }
+
+  /**
+   * Kick off a FLUX.2 image prediction on Replicate.
+   * Poll via {@link pollPrediction}; image URLs land in previewUrls.
+   */
+  async startFluxImagePrediction(opts: {
+    prompt: string;
+    inputImages?: string[];
+    aspectRatio?: string;
+    resolution?: string;
+    seed?: number;
+    outputFormat?: 'png' | 'jpg' | 'webp';
+    requestId: string;
+    userId: string;
+  }): Promise<string> {
+    const model = this.cfg.fluxModel;
+    const url = `${this.cfg.baseUrl}/v1/models/${model}/predictions`;
+
+    const input: Record<string, unknown> = {
+      prompt: opts.prompt,
+      output_format: opts.outputFormat ?? 'png',
+      safety_tolerance: 2,
+    };
+    if (opts.inputImages && opts.inputImages.length > 0) {
+      input.input_images = opts.inputImages.slice(0, 8);
+    }
+    if (opts.aspectRatio) input.aspect_ratio = opts.aspectRatio;
+    if (opts.resolution) input.resolution = opts.resolution;
+    if (opts.seed != null) input.seed = opts.seed;
+
+    const { data } = await outboundJson<ReplicatePrediction>({
+      provider: PROVIDER,
+      url,
+      method: 'POST',
+      headers: this.authHeaders(),
+      body: { input },
+      timeoutMs: this.cfg.timeoutMs,
+      requestId: opts.requestId,
+      userId: opts.userId,
+    });
+
+    if (!data.id) {
+      throw ProviderError.permanent(PROVIDER, 'Replicate did not return prediction ID');
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'replicate_flux_prediction_started',
+        predictionId: data.id,
+        requestId: opts.requestId,
+        userId: opts.userId,
+        model,
+        referenceCount: opts.inputImages?.length ?? 0,
       }),
     );
 
@@ -206,8 +338,10 @@ export class ReplicateProviderAdapter {
       status,
       modelUrls,
       previewUrls,
+      outputUrls: allUrls,
       errorMessage: raw.error ?? undefined,
       cancelUrl: raw.urls?.cancel,
+      metrics: raw.metrics,
     };
   }
 }
@@ -220,14 +354,46 @@ export class ReplicateProviderAdapter {
  *
  * Exported for unit testing.
  */
-export function buildHunyuanInput(image?: string, prompt?: string): HunyuanInput {
-  const base = {
-    enable_pbr: false as const,
-    face_count: 500_000 as const,
-    generate_type: 'Normal' as const,
+export function buildHunyuanInput(
+  image?: string,
+  prompt?: string,
+  generation: Hunyuan3dGenerationOptions = HUNYUAN_3D_DEFAULT_OPTIONS,
+): HunyuanInput {
+  const base: HunyuanInput = {
+    enable_pbr: generation.enable_pbr,
+    face_count: generation.face_count,
+    generate_type: generation.generate_type,
   };
   if (image) return { ...base, image };
   return { ...base, prompt };
+}
+
+export function buildHunyuan2mvInput(
+  views: HunyuanMultiviewUrls,
+  generation?: Hunyuan2mvGenerationOptions,
+): Record<string, unknown> {
+  const opts = generation ?? HUNYUAN_2MV_DEFAULT_OPTIONS;
+
+  const input: Record<string, unknown> = {
+    steps: opts.steps,
+    guidance_scale: opts.guidance_scale,
+    target_face_num: opts.target_face_num,
+    octree_resolution: opts.octree_resolution,
+    remove_background: opts.remove_background,
+    randomize_seed: opts.randomize_seed,
+    file_type: opts.file_type,
+  };
+
+  if (views.front) input.front_image = views.front;
+  if (views.back) input.back_image = views.back;
+  if (views.left) input.left_image = views.left;
+  if (views.right) input.right_image = views.right;
+
+  if (opts.seed != null && !opts.randomize_seed) {
+    input.seed = opts.seed;
+  }
+
+  return input;
 }
 
 /**

@@ -6,6 +6,8 @@ import {
   INTEGRATION_SYNC_QUEUE,
   PROJECT_OPS_QUEUE,
   COLLAB_OPS_QUEUE,
+  RIGGING_QUEUE,
+  MESH2MOTION_QUEUE,
 } from './queue-names.js';
 import { redisConfig } from './redis.config.js';
 
@@ -22,6 +24,8 @@ import { redisConfig } from './redis.config.js';
       { name: INTEGRATION_SYNC_QUEUE },
       { name: PROJECT_OPS_QUEUE },
       { name: COLLAB_OPS_QUEUE },
+      { name: RIGGING_QUEUE },
+      { name: MESH2MOTION_QUEUE },
     ),
   ],
   exports: [BullModule],

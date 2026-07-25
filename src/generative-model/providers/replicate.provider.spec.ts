@@ -112,11 +112,22 @@ describe('ReplicateProviderAdapter.normalise', () => {
 // ─── buildHunyuanInput ────────────────────────────────────────────────────────
 
 describe('buildHunyuanInput', () => {
-  it('includes fixed Hunyuan defaults', () => {
+  it('defaults to Prop preset (40k / Geometry)', () => {
     const input = buildHunyuanInput(undefined, 'a sword');
     expect(input.enable_pbr).toBe(false);
+    expect(input.face_count).toBe(40_000);
+    expect(input.generate_type).toBe('Geometry');
+  });
+
+  it('applies caller generation options', () => {
+    const input = buildHunyuanInput(undefined, 'a sword', {
+      face_count: 500_000,
+      generate_type: 'Normal',
+      enable_pbr: true,
+    });
     expect(input.face_count).toBe(500_000);
     expect(input.generate_type).toBe('Normal');
+    expect(input.enable_pbr).toBe(true);
   });
 
   it('sets prompt for text-to-3D mode', () => {

@@ -103,22 +103,42 @@ export const SURFACE_REGISTRY: Record<CollaborationDocumentType, CollaborationSu
     yjsSchemaVersion: 'canvas.v2',
     awarenessSchema: {
       description:
-        'Workflow block graph: selected nodes, pan/zoom viewport, and in-progress generation on a block.',
-      fields: ['selectedBlockIds', 'viewport', 'activeBlockId', 'localActivityId'],
+        'Multi-workflow block graph: active workflow, selected nodes, viewport, and in-progress action runs.',
+      fields: [
+        'activeWorkflowId',
+        'selectedNodeIds',
+        'viewport',
+        'activeNodeId',
+        'localActivityId',
+        'localRunId',
+      ],
     },
     commentAnchorSchema: {
-      description: 'Anchors a comment to a workflow block or canvas region.',
+      description:
+        'Anchors a comment to a workflow, node, edge, or canvas region.',
       requiredFields: [],
-      optionalFields: ['blockId', 'nodeId', 'region'],
+      optionalFields: ['workflowId', 'nodeId', 'edgeId', 'blockId', 'region'],
     },
     generationTargets: {
       description:
-        'Concept art, character sheets, and other image generation triggered from workflow blocks.',
-      activityTypes: ['image_generation', 'ai_task', 'asset_import'],
-      targetFields: ['blockId', 'nodeId', 'assetId', 'promptHash'],
+        'Concept art, 3D models, and image-split outputs from orchestrator/action blocks.',
+      activityTypes: [
+        'image_generation',
+        'model_generation',
+        'ai_task',
+        'asset_import',
+      ],
+      targetFields: [
+        'workflowId',
+        'nodeId',
+        'runId',
+        'actionKind',
+        'assetId',
+        'promptHash',
+      ],
     },
     reconciliationStrategy:
-      'On completion, attach the generated asset output to the target workflow block exactly once, guarded by activityId.',
+      'On completion, attach activity.result output asset IDs to the target workflow node exactly once, guarded by activityId/runId.',
   },
   gui_screen: {
     documentType: 'gui_screen',

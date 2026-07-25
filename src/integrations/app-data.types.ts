@@ -113,7 +113,12 @@ export interface ProjectMemberRow {
 
 export interface ProjectAssetRow {
   assetId: string;
-  projectId: string;
+  /** Cloud project scope. Null when the asset belongs to a local desktop project. */
+  projectId: string | null;
+  /** Owner-scoped local desktop project id (mutually exclusive with projectId). */
+  localProjectId?: string | null;
+  /** Explicit owner for local-scoped assets; mirrors uploader for cloud assets. */
+  ownerUserId?: string | null;
   uploadedByUserId: string;
   assetType: string;
   name: string;
@@ -129,6 +134,52 @@ export interface ProjectAssetRow {
   requestId?: string;
   promptHash?: string;
   metadata?: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type RiggingJobStatus =
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface RiggingJobRow {
+  jobId: string;
+  userId: string;
+  projectId?: string | null;
+  localProjectId?: string | null;
+  sourceAssetId: string;
+  outputAssetId: string;
+  workerJobId?: string | null;
+  idempotencyKey?: string | null;
+  status: RiggingJobStatus;
+  simplify: boolean;
+  targetFaceCount: number;
+  errorMessage?: string | null;
+  resultJson?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Nest durable status for Mesh2Motion jobs (same lifecycle as RiggingJobStatus). */
+export type Mesh2MotionJobStatus = RiggingJobStatus;
+
+export interface Mesh2MotionJobRow {
+  jobId: string;
+  userId: string;
+  projectId?: string | null;
+  localProjectId?: string | null;
+  sourceAssetId: string;
+  outputAssetId: string;
+  workerJobId?: string | null;
+  idempotencyKey?: string | null;
+  status: Mesh2MotionJobStatus;
+  skeletonType: string;
+  animationNames?: string[] | null;
+  errorMessage?: string | null;
+  resultJson?: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -259,6 +310,11 @@ export interface CollaborationActivityRow {
   result?: Record<string, unknown>;
   errorMessage?: string;
   reconciledAt?: Date;
+  /** Canvas workflow action scoping (nullable for non-canvas activities). */
+  workflowId?: string;
+  nodeId?: string;
+  runId?: string;
+  actionKind?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -270,4 +326,22 @@ export interface ProviderCredentialRow {
   refreshToken?: string;
   expiresAt?: Date;
   updatedAt: Date;
+}
+
+/** Durable estimated-cost row for generative requests (project settings analytics). */
+export interface GenerationUsageEventRow {
+  eventId: string;
+  requestId: string;
+  projectId: string;
+  actorUserId: string;
+  provider: string;
+  modelId?: string;
+  surface: string;
+  actionKind?: string;
+  requestType: string;
+  usage: Record<string, unknown>;
+  estimatedCostUsd: number;
+  currency: string;
+  billable: boolean;
+  createdAt: Date;
 }

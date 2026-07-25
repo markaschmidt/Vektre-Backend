@@ -72,7 +72,8 @@ export function toProjectAssetListItem(row: ProjectAssetRow): ProjectAssetListIt
     (row.status === 'ready' || row.status === 'active') && Boolean(row.objectPath);
   return {
     assetId: row.assetId,
-    projectId: row.projectId,
+    // Cloud list endpoints always have projectId; fall back for safety.
+    projectId: row.projectId ?? row.localProjectId ?? '',
     assetType: row.assetType,
     name: row.name,
     mimeType: row.mimeType,

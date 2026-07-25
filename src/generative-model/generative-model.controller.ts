@@ -97,7 +97,10 @@ export class GenerativeModelController {
 
   /**
    * POST /generative-model/concept-art
-   * Enqueue a DALL-E 3 concept art generation. Returns 202 with requestId.
+   * Enqueue concept art via the shared generative-model queue.
+   * Default provider: OpenAI GPT Image (`OPENAI_IMAGE_MODEL`).
+   * Optional `provider: "flux2"` routes to Replicate FLUX.2.
+   * Canvas workflows call the same `enqueueConceptArt` path — do not duplicate.
    */
   @Post('concept-art')
   @HttpCode(HttpStatus.ACCEPTED)

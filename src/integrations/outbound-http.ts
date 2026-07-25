@@ -120,6 +120,125 @@ export async function outboundJson<T = unknown>(
   return { status: response.status, headers: responseHeaders, data };
 }
 
+export interface OutboundMultipartOptions
+  extends Omit<OutboundRequestOptions, 'body'> {
+  /** multipart/form-data fields (strings or Blobs/Files/Buffers). */
+  form: Record<string, string | Blob | Buffer | Array<string | Blob | Buffer>>;
+}
+
+/**
+ * Typed multipart fetch wrapper (e.g. OpenAI /v1/images/edits).
+ * Does not force Content-Type so fetch can set the multipart boundary.
+ */
+export async function outboundMultipart<T = unknown>(
+  opts: OutboundMultipartOptions,
+): Promise<OutboundResponse<T>> {
+  const {
+    provider,
+    url,
+    method = 'POST',
+    headers = {},
+    form,
+    timeoutMs = 30_000,
+    requestId,
+    userId,
+  } = opts;
+
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(form)) {
+    const values = Array.isArray(value) ? value : [value];
+    for (const entry of values) {
+      if (typeof entry === 'string') {
+        formData.append(key, entry);
+      } else if (Buffer.isBuffer(entry)) {
+        formData.append(
+          key,
+          new Blob([new Uint8Array(entry)]),
+          `${key}.bin`,
+        );
+      } else {
+        formData.append(key, entry);
+      }
+    }
+  }
+
+  const redactedHeaders = redactHeaders(headers);
+  logger.debug(
+    JSON.stringify({
+      event: 'outbound_multipart_request',
+      provider,
+      method,
+      url,
+      headers: redactedHeaders,
+      formKeys: Object.keys(form),
+      requestId,
+      userId,
+    }),
+  );
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Strip Content-Type so undici sets multipart boundary automatically.
+  const { 'Content-Type': _ignored, 'content-type': _ignored2, ...rest } =
+    headers;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: rest,
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    if ((err as { name?: string }).name === 'AbortError') {
+      throw ProviderError.retryable(
+        provider,
+        `Request timed out after ${timeoutMs}ms`,
+      );
+    }
+    throw ProviderError.retryable(provider, `Network error: ${String(err)}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  const text = await response.text();
+
+  logger.debug(
+    JSON.stringify({
+      event: 'outbound_multipart_response',
+      provider,
+      url,
+      status: response.status,
+      requestId,
+      userId,
+    }),
+  );
+
+  if (!response.ok) {
+    throw classifyHttpStatus(provider, response.status, text.slice(0, 400));
+  }
+
+  let data: T;
+  try {
+    data = text.length > 0 ? (JSON.parse(text) as T) : ({} as T);
+  } catch {
+    throw ProviderError.permanent(
+      provider,
+      `Invalid JSON response: ${text.slice(0, 200)}`,
+    );
+  }
+
+  const responseHeaders: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    responseHeaders[key] = value;
+  });
+
+  return { status: response.status, headers: responseHeaders, data };
+}
+
 /**
  * Download binary content as a Buffer (e.g. model assets, images).
  */

@@ -3,12 +3,16 @@ export const GENERATIVE_MODEL_QUEUE = 'generative-model';
 export const INTEGRATION_SYNC_QUEUE = 'integration-sync';
 export const PROJECT_OPS_QUEUE = 'project-ops';
 export const COLLAB_OPS_QUEUE = 'collab-ops';
+export const RIGGING_QUEUE = 'rigging';
+export const MESH2MOTION_QUEUE = 'mesh2motion';
 
 // ── Generative-model job names ────────────────────────────────────────────────
 export const JOB_REPLICATE_GENERATE_3D = 'replicate-generate-3d';
 export const JOB_REPLICATE_POLL_3D = 'replicate-poll-3d';
 export const JOB_OPENAI_DOCUMENT_SUGGESTION = 'openai-document-suggestion';
 export const JOB_OPENAI_CONCEPT_ART = 'openai-concept-art';
+export const JOB_REPLICATE_GENERATE_IMAGE = 'replicate-generate-image';
+export const JOB_REPLICATE_POLL_IMAGE = 'replicate-poll-image';
 export const JOB_OLLAMA_DOCUMENT_SUGGESTION = 'ollama-document-suggestion';
 
 // ── Integration-sync job names ────────────────────────────────────────────────
@@ -29,3 +33,12 @@ export const JOB_PROJECT_ASSET_UPSERT = 'project-asset-upsert';
 export const JOB_PROJECT_ASSET_REMOVE = 'project-asset-remove';
 
 export const JOB_COLLAB_COMMENT_NOTIFY = 'collab-comment-notify';
+
+// ── Canvas workflow job names ─────────────────────────────────────────────────
+export const JOB_CANVAS_IMAGE_SPLIT = 'canvas-image-split';
+export const JOB_CANVAS_CONCEPT_ART_PERSIST = 'canvas-concept-art-persist';
+export const JOB_CANVAS_MODEL_3D_IMPORT = 'canvas-model-3d-import';
+
+// ── Rigging job names ─────────────────────────────────────────────────────────
+export const JOB_RIG_ANYTHING = 'rig-anything';
+export const JOB_MESH2MOTION = 'mesh2motion-rig';

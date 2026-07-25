@@ -12,17 +12,27 @@ import { NotionModule } from './integrations/notion/notion.module.js';
 import { ObsidianModule } from './integrations/obsidian/obsidian.module.js';
 import { outboundConfig } from './config/outbound.config.js';
 import { integrationCryptoConfig } from './config/integration-crypto.config.js';
+import { rigAnythingConfig } from './config/riganything.config.js';
+import { mesh2MotionConfig } from './config/mesh2motion.config.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { CollaborationModule } from './collaboration/collaboration.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { InvitesModule } from './invites/invites.module.js';
 import { CollaborationDocumentsModule } from './collaboration-documents/collaboration-documents.module.js';
+import { CanvasWorkflowsModule } from './canvas-workflows/canvas-workflows.module.js';
+import { RiggingModule } from './rigging/rigging.module.js';
+import { Mesh2MotionModule } from './mesh2motion/mesh2motion.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [outboundConfig, integrationCryptoConfig],
+      load: [
+        outboundConfig,
+        integrationCryptoConfig,
+        rigAnythingConfig,
+        mesh2MotionConfig,
+      ],
     }),
     QueuesModule,
     IntegrationsModule,
@@ -32,6 +42,9 @@ import { CollaborationDocumentsModule } from './collaboration-documents/collabor
     ProjectsModule,
     CollaborationModule,
     CollaborationDocumentsModule,
+    CanvasWorkflowsModule,
+    RiggingModule,
+    Mesh2MotionModule,
     NotificationsModule,
     InvitesModule,
     GoogleDriveModule,

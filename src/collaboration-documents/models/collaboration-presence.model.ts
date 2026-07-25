@@ -97,11 +97,14 @@ export function buildSurfaceAwarenessContract(
       };
     case 'canvas':
       return {
-        description: 'Canvas workflow awareness: selected blocks, viewport pan/zoom, active generation block.',
+        description:
+          'Canvas workflow awareness: active workflow, selected nodes, viewport, and in-progress action run.',
         fields: {
           ...common,
-          selectedBlockIds: 'string[]',
-          activeBlockId: 'string | undefined',
+          activeWorkflowId: 'string | undefined — which workflow graph is focused',
+          selectedNodeIds: 'string[]',
+          activeNodeId: 'string | undefined',
+          localRunId: 'string | undefined — client run id for the action in progress',
           viewport: '{ x, y, zoom } | undefined',
         },
       };

@@ -153,6 +153,106 @@ describe('Yjs collaboration smoke test (multi-surface)', () => {
     await canvasConn.disconnect();
   });
 
+  it('supports concurrent multi-workflow edits in the same canvas room without overwrite', async () => {
+    const instance = new Hocuspocus({ ...buildCollabHooks() });
+    const canvasName = buildDocumentName('proj-1', 'doc-canvas', 'canvas');
+
+    const connectionA = await instance.openDirectConnection(canvasName, {
+      user: { id: 'user-a' },
+    });
+    const connectionB = await instance.openDirectConnection(canvasName, {
+      user: { id: 'user-b' },
+    });
+
+    await connectionA.transact((document) => {
+      const workflows = document.getMap('workflows');
+      const wf1 = new Y.Map();
+      const nodes = new Y.Map();
+      nodes.set('node-a', {
+        nodeId: 'node-a',
+        kind: 'concept_art',
+        label: 'From A',
+        position: { x: 0, y: 0 },
+        config: { prompt: 'hero' },
+      });
+      wf1.set('meta', {
+        workflowId: 'wf-1',
+        name: 'Workflow A',
+        origin: 'user',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+      wf1.set('nodes', nodes);
+      wf1.set('edges', new Y.Map());
+      workflows.set('wf-1', wf1);
+    });
+
+    await connectionB.transact((document) => {
+      const workflows = document.getMap('workflows');
+      const wf2 = new Y.Map();
+      const nodes = new Y.Map();
+      nodes.set('node-b', {
+        nodeId: 'node-b',
+        kind: 'repository_asset',
+        label: 'From B',
+        position: { x: 100, y: 0 },
+        source: { assetId: 'img-1' },
+      });
+      wf2.set('meta', {
+        workflowId: 'wf-2',
+        name: 'Workflow B',
+        origin: 'user',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+      wf2.set('nodes', nodes);
+      wf2.set('edges', new Y.Map());
+      workflows.set('wf-2', wf2);
+    });
+
+    const shared = connectionA.document?.getMap('workflows');
+    expect(shared?.has('wf-1')).toBe(true);
+    expect(shared?.has('wf-2')).toBe(true);
+
+    const wf1Nodes = (shared?.get('wf-1') as Y.Map<unknown>).get('nodes') as Y.Map<unknown>;
+    const wf2Nodes = (shared?.get('wf-2') as Y.Map<unknown>).get('nodes') as Y.Map<unknown>;
+    expect(wf1Nodes.get('node-a')).toMatchObject({ kind: 'concept_art' });
+    expect(wf2Nodes.get('node-b')).toMatchObject({ kind: 'repository_asset' });
+
+    // Concurrent node edit inside the same workflow map key.
+    await connectionA.transact((document) => {
+      const workflows = document.getMap('workflows');
+      const wf1 = workflows.get('wf-1') as Y.Map<unknown>;
+      const nodes = wf1.get('nodes') as Y.Map<unknown>;
+      nodes.set('node-a2', {
+        nodeId: 'node-a2',
+        kind: 'image_split',
+        label: 'Split',
+        position: { x: 40, y: 40 },
+        config: { mode: 'grid', grid: { rows: 2, columns: 2 } },
+      });
+    });
+    await connectionB.transact((document) => {
+      const workflows = document.getMap('workflows');
+      const wf1 = workflows.get('wf-1') as Y.Map<unknown>;
+      const edges = wf1.get('edges') as Y.Map<unknown>;
+      edges.set('edge-1', {
+        edgeId: 'edge-1',
+        sourceNodeId: 'node-a',
+        sourcePortId: 'image',
+        targetNodeId: 'node-a2',
+        targetPortId: 'image',
+      });
+    });
+
+    const wf1 = shared?.get('wf-1') as Y.Map<unknown>;
+    expect((wf1.get('nodes') as Y.Map<unknown>).has('node-a2')).toBe(true);
+    expect((wf1.get('edges') as Y.Map<unknown>).has('edge-1')).toBe(true);
+
+    await connectionA.disconnect();
+    await connectionB.disconnect();
+  });
+
   it('accepts a project session room alongside a document room on the same server instance', async () => {
     const instance = new Hocuspocus({ ...buildCollabHooks() });
     const sessionName = buildSessionRoomName('proj-1');
