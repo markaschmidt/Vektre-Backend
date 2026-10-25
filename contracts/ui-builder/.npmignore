@@ -1,0 +1,14 @@
+# Deny source/tooling. package.json "files" is the allow-list; this is belt-and-suspenders.
+# Do NOT ignore *.d.ts — those ship inside dist/ for TypeScript consumers.
+src/
+scripts/
+tests/
+tsconfig.json
+tsconfig.scripts.json
+jest.config.cjs
+.gitignore
+.npmrc
+*.tgz
+*.tsbuildinfo
+**/__pycache__/
+*.pyc

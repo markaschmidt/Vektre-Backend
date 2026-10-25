@@ -1,0 +1,85 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/patch-conflict.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "baseValue": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "kind": {
+      "enum": [
+        "test_failed",
+        "human_changed",
+        "target_deleted",
+        "reference_missing",
+        "schema_invalid"
+      ],
+      "type": "string"
+    },
+    "liveValue": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "message": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "type": "string"
+    },
+    "path": {
+      "maxLength": 2048,
+      "pattern": "^\\/(?:metadata|platformProfiles|spatialProfiles|screens|surfaces|flows|groups|components|blockDefinitions|blockInstances|designTokens|styles|assets|bindings|states|interactions|visibilityRules|animations|constraints|provenance)(?:\\/(?:[^/~]|~[01])+)*$",
+      "type": "string"
+    },
+    "proposedValue": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "resolution": {
+      "enum": [
+        "human_wins",
+        "ai_wins",
+        "manual"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "path",
+    "kind",
+    "message"
+  ],
+  "title": "Patch Conflict",
+  "type": "object"
+}

@@ -1,0 +1,310 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema1": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "__schema2": {
+      "additionalProperties": false,
+      "properties": {
+        "estimatedTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "enum": [
+            "live_document",
+            "explicit_references",
+            "memory",
+            "comments",
+            "conversation",
+            "human_delta",
+            "artifacts",
+            "retrieval"
+          ],
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/__schema3"
+          },
+          "maxItems": 4096,
+          "type": "array"
+        },
+        "tokenBudget": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "tokenBudget",
+        "estimatedTokens",
+        "sources"
+      ],
+      "type": "object"
+    },
+    "__schema3": {
+      "additionalProperties": false,
+      "properties": {
+        "citation": {
+          "additionalProperties": false,
+          "properties": {
+            "contentHash": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "excerpt": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "label": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "locator": {
+              "anyOf": [
+                {
+                  "maxLength": 1024,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sourceId": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "sourceKind": {
+              "$ref": "#/$defs/__schema4"
+            },
+            "visibility": {
+              "$ref": "#/$defs/__schema5"
+            }
+          },
+          "required": [
+            "sourceId",
+            "sourceKind",
+            "contentHash",
+            "visibility"
+          ],
+          "type": "object"
+        },
+        "content": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "estimatedTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rank": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "selectionReason": {
+          "enum": [
+            "live_document",
+            "explicit_reference",
+            "accepted_memory",
+            "unresolved_comment",
+            "recent_message",
+            "summary",
+            "human_delta",
+            "artifact_relation",
+            "full_text",
+            "vector"
+          ],
+          "type": "string"
+        },
+        "sourceId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "sourceKind": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "visibility": {
+          "$ref": "#/$defs/__schema5"
+        }
+      },
+      "required": [
+        "sourceId",
+        "sourceKind",
+        "contentHash",
+        "visibility",
+        "selectionReason",
+        "rank",
+        "estimatedTokens",
+        "content",
+        "citation",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "__schema4": {
+      "enum": [
+        "message",
+        "document",
+        "screen",
+        "group",
+        "component",
+        "block",
+        "asset",
+        "storyboard",
+        "comment",
+        "artifact",
+        "memory"
+      ],
+      "type": "string"
+    },
+    "__schema5": {
+      "enum": [
+        "shared",
+        "private",
+        "system"
+      ],
+      "type": "string"
+    },
+    "__schema6": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema6"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema6"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/context-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actorId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "documentHash": {
+      "$ref": "#/$defs/__schema1"
+    },
+    "documentId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "documentRevision": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "estimatedTokens": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "generatedAt": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "type": "string"
+    },
+    "manifestId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "modelPresetId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "projectId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "runId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "type": "number"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/__schema2"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array"
+    },
+    "threadId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "totalTokenBudget": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "manifestId",
+    "runId",
+    "projectId",
+    "documentId",
+    "threadId",
+    "actorId",
+    "documentRevision",
+    "documentHash",
+    "modelPresetId",
+    "totalTokenBudget",
+    "estimatedTokens",
+    "sections",
+    "generatedAt"
+  ],
+  "title": "Context Manifest",
+  "type": "object"
+}

@@ -1,0 +1,138 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema1": {
+      "additionalProperties": false,
+      "properties": {
+        "alternativeId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/__schema2"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "type": "array"
+        },
+        "feasible": {
+          "type": "boolean"
+        },
+        "totalScore": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "alternativeId",
+        "candidates",
+        "totalScore",
+        "feasible"
+      ],
+      "type": "object"
+    },
+    "__schema2": {
+      "additionalProperties": false,
+      "properties": {
+        "candidateId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "explanation": {
+          "maxLength": 2048,
+          "type": "string"
+        },
+        "functionalNodeId": {
+          "$ref": "#/$defs/__schema3"
+        },
+        "score": {
+          "type": "number"
+        },
+        "scoreBreakdown": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "visualNodeId": {
+          "$ref": "#/$defs/__schema3"
+        }
+      },
+      "required": [
+        "candidateId",
+        "functionalNodeId",
+        "visualNodeId",
+        "score",
+        "scoreBreakdown"
+      ],
+      "type": "object"
+    },
+    "__schema3": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$",
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/match-review-set.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "alternatives": {
+      "items": {
+        "$ref": "#/$defs/__schema1"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "type": "array"
+    },
+    "matchSetId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "recommendedAlternativeId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "requiresReview": {
+      "type": "boolean"
+    },
+    "reviewDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "alternativeId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "decidedAt": {
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "type": "string"
+        },
+        "notes": {
+          "maxLength": 2048,
+          "type": "string"
+        }
+      },
+      "required": [
+        "alternativeId",
+        "actorId",
+        "decidedAt"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "matchSetId",
+    "alternatives",
+    "requiresReview"
+  ],
+  "title": "Match Review Set",
+  "type": "object"
+}

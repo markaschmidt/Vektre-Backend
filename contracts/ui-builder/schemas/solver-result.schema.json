@@ -1,0 +1,99 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "additionalProperties": false,
+      "properties": {
+        "candidateId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 2048,
+          "type": "string"
+        },
+        "functionalNodeId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "score": {
+          "type": "number"
+        },
+        "scoreBreakdown": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "visualNodeId": {
+          "$ref": "#/$defs/__schema1"
+        }
+      },
+      "required": [
+        "candidateId",
+        "functionalNodeId",
+        "visualNodeId",
+        "score",
+        "scoreBreakdown"
+      ],
+      "type": "object"
+    },
+    "__schema1": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$",
+      "type": "string"
+    },
+    "__schema2": {
+      "maxLength": 2048,
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/solver-result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "assignments": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "maxItems": 10000,
+      "type": "array"
+    },
+    "diagnostics": {
+      "items": {
+        "$ref": "#/$defs/__schema2"
+      },
+      "maxItems": 256,
+      "type": "array"
+    },
+    "objectiveValue": {
+      "type": "number"
+    },
+    "solverVersion": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "optimal",
+        "feasible",
+        "infeasible",
+        "error"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "solverVersion",
+    "status",
+    "assignments",
+    "diagnostics"
+  ],
+  "title": "Solver Result",
+  "type": "object"
+}

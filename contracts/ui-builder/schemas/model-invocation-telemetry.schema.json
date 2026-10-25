@@ -1,0 +1,248 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/model-invocation-telemetry.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actorId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "actualModel": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "cacheWriteTokens": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "contextManifestVersion": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "type": "string"
+    },
+    "documentId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "errorCategory": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "estimatedCostUsd": {
+      "minimum": 0,
+      "type": "number"
+    },
+    "finishReason": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "gateway": {
+      "enum": [
+        "openai",
+        "openrouter",
+        "other"
+      ],
+      "type": "string"
+    },
+    "imageCount": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "imageHeight": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    },
+    "imageWidth": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    },
+    "invocationId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "latencyMs": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "modelPresetId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "type": "string"
+    },
+    "priceTableVersion": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "projectId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "promptVersion": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "repairAttempts": {
+      "maximum": 2,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "requestedModel": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "retryCount": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "runId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "schemaVersion": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "spanId": {
+      "maxLength": 32,
+      "minLength": 1,
+      "type": "string"
+    },
+    "stage": {
+      "enum": [
+        "understand",
+        "propose_ux",
+        "propose_visual",
+        "analyze_references",
+        "plan_patch",
+        "match_compose",
+        "critique_validate"
+      ],
+      "type": "string"
+    },
+    "stageExecutionId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "threadId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "traceId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    },
+    "usage": {
+      "additionalProperties": false,
+      "properties": {
+        "cachedInputTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "imageInputTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "inputTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "outputTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "providerCostUsd": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "providerRequestId": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "reasoningTokens": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "inputTokens",
+        "cachedInputTokens",
+        "imageInputTokens",
+        "outputTokens",
+        "reasoningTokens"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "invocationId",
+    "projectId",
+    "documentId",
+    "threadId",
+    "runId",
+    "stageExecutionId",
+    "stage",
+    "actorId",
+    "gateway",
+    "requestedModel",
+    "actualModel",
+    "promptVersion",
+    "schemaVersion",
+    "contextManifestVersion",
+    "usage",
+    "latencyMs",
+    "retryCount",
+    "repairAttempts",
+    "outcome",
+    "createdAt"
+  ],
+  "title": "Model Invocation Telemetry",
+  "type": "object"
+}

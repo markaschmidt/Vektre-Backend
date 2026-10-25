@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 2,
+  "documentKind": "menu",
+  "metadata": {
+    "documentId": "fixture-inventory-menu",
+    "title": "Inventory Menu"
+  },
+  "platformProfiles": {
+    "console": {
+      "id": "console",
+      "platform": "console",
+      "viewport": { "width": 3840, "height": 2160 },
+      "inputModes": ["gamepad"]
+    }
+  },
+  "spatialProfiles": {
+    "screen": { "id": "screen", "mode": "screen", "units": "pixels" }
+  },
+  "screens": {
+    "inventory": {
+      "id": "inventory",
+      "name": "Inventory",
+      "surfaceIds": ["menu_surface"],
+      "rootNodes": [{ "kind": "group", "id": "inventory_panel" }]
+    }
+  },
+  "surfaces": {
+    "menu_surface": {
+      "id": "menu_surface",
+      "name": "Menu Surface",
+      "kind": "screen",
+      "size": { "width": 3840, "height": 2160 },
+      "platformProfileIds": ["console"],
+      "spatialProfileId": "screen"
+    }
+  },
+  "flows": {
+    "inventory_flow": {
+      "id": "inventory_flow",
+      "name": "Inventory Flow",
+      "entryScreenId": "inventory",
+      "screenIds": ["inventory"],
+      "transitions": {}
+    }
+  },
+  "groups": {
+    "inventory_panel": {
+      "id": "inventory_panel",
+      "name": "Inventory Panel",
+      "screenId": "inventory",
+      "surfaceId": "menu_surface",
+      "children": [{ "kind": "component", "id": "item_grid" }],
+      "layout": {
+        "mode": "column",
+        "position": { "x": 320, "y": 240 },
+        "size": { "width": 3200, "height": 1680 },
+        "padding": { "top": 64, "right": 64, "bottom": 64, "left": 64 },
+        "gap": 32
+      },
+      "zIndex": 1
+    }
+  },
+  "components": {
+    "item_grid": {
+      "id": "item_grid",
+      "kind": "inventory_grid",
+      "name": "Item Grid",
+      "screenId": "inventory",
+      "surfaceId": "menu_surface",
+      "parentId": "inventory_panel",
+      "layout": {
+        "mode": "grid",
+        "size": { "width": 3072, "height": 1552 },
+        "gap": 24,
+        "gridColumns": 8
+      },
+      "zIndex": 2,
+      "bindingIds": ["inventory_items"],
+      "interactionIds": ["select_item"]
+    }
+  },
+  "blockDefinitions": {},
+  "blockInstances": {},
+  "designTokens": {
+    "colors": { "panel": "#141820f2", "focus": "#e9c46a" },
+    "typography": {},
+    "spacing": { "lg": 32 },
+    "radii": { "panel": 12 },
+    "shadows": {},
+    "motion": {}
+  },
+  "styles": {},
+  "assets": {},
+  "bindings": {
+    "inventory_items": {
+      "id": "inventory_items",
+      "path": "player.inventory.items",
+      "valueType": "array",
+      "fallback": []
+    }
+  },
+  "states": {},
+  "interactions": {
+    "select_item": {
+      "id": "select_item",
+      "event": "click",
+      "action": "set_state",
+      "parameters": { "state": "selectedItem" }
+    }
+  },
+  "visibilityRules": {},
+  "animations": {},
+  "constraints": {},
+  "provenance": {
+    "createdBy": "human",
+    "createdAt": "2026-08-19T00:00:00.000Z"
+  }
+}

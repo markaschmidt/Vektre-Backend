@@ -1,0 +1,315 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema1": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$",
+      "type": "string"
+    },
+    "__schema2": {
+      "maxLength": 2048,
+      "pattern": "^\\/(?:metadata|platformProfiles|spatialProfiles|screens|surfaces|flows|groups|components|blockDefinitions|blockInstances|designTokens|styles|assets|bindings|states|interactions|visibilityRules|animations|constraints|provenance)(?:\\/(?:[^/~]|~[01])+)*$",
+      "type": "string"
+    },
+    "__schema3": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "add",
+              "type": "string"
+            },
+            "path": {
+              "$ref": "#/$defs/__schema2"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "op",
+            "path",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "remove",
+              "type": "string"
+            },
+            "path": {
+              "$ref": "#/$defs/__schema2"
+            }
+          },
+          "required": [
+            "op",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "replace",
+              "type": "string"
+            },
+            "path": {
+              "$ref": "#/$defs/__schema2"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "op",
+            "path",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/__schema2"
+            },
+            "op": {
+              "const": "move",
+              "type": "string"
+            },
+            "path": {
+              "$ref": "#/$defs/__schema2"
+            }
+          },
+          "required": [
+            "op",
+            "from",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/__schema2"
+            },
+            "op": {
+              "const": "copy",
+              "type": "string"
+            },
+            "path": {
+              "$ref": "#/$defs/__schema2"
+            }
+          },
+          "required": [
+            "op",
+            "from",
+            "path"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "op": {
+              "const": "test",
+              "type": "string"
+            },
+            "path": {
+              "$ref": "#/$defs/__schema2"
+            },
+            "value": {
+              "$ref": "#/$defs/__schema4"
+            }
+          },
+          "required": [
+            "op",
+            "path",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "__schema4": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema4"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema4"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "__schema5": {
+      "additionalProperties": false,
+      "properties": {
+        "baseValue": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "kind": {
+          "enum": [
+            "test_failed",
+            "human_changed",
+            "target_deleted",
+            "reference_missing",
+            "schema_invalid"
+          ],
+          "type": "string"
+        },
+        "liveValue": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "message": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        "path": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "proposedValue": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "resolution": {
+          "enum": [
+            "human_wins",
+            "ai_wins",
+            "manual"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "kind",
+        "message"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/document-patch-proposal.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "activityId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "baseDocumentHash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "baseRevision": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "conflicts": {
+      "items": {
+        "$ref": "#/$defs/__schema5"
+      },
+      "maxItems": 4096,
+      "type": "array"
+    },
+    "generatedAssetIds": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "maxItems": 1024,
+      "type": "array"
+    },
+    "intent": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "intentionallyPreservedPaths": {
+      "items": {
+        "$ref": "#/$defs/__schema2"
+      },
+      "maxItems": 4096,
+      "type": "array"
+    },
+    "operations": {
+      "items": {
+        "$ref": "#/$defs/__schema3"
+      },
+      "maxItems": 4096,
+      "minItems": 1,
+      "type": "array"
+    },
+    "proposalId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "runId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "type": "number"
+    },
+    "targetedIds": {
+      "items": {
+        "$ref": "#/$defs/__schema1"
+      },
+      "maxItems": 1024,
+      "type": "array"
+    },
+    "targetedPaths": {
+      "items": {
+        "$ref": "#/$defs/__schema2"
+      },
+      "maxItems": 2048,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "proposalId",
+    "runId",
+    "baseDocumentHash",
+    "baseRevision",
+    "intent",
+    "targetedIds",
+    "targetedPaths",
+    "operations",
+    "generatedAssetIds",
+    "intentionallyPreservedPaths",
+    "conflicts"
+  ],
+  "title": "Document Patch Proposal",
+  "type": "object"
+}

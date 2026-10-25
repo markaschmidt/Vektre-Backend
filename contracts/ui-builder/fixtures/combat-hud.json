@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 2,
+  "documentKind": "hud",
+  "metadata": {
+    "documentId": "fixture-combat-hud",
+    "title": "Combat HUD"
+  },
+  "platformProfiles": {
+    "desktop": {
+      "id": "desktop",
+      "platform": "desktop",
+      "viewport": { "width": 1920, "height": 1080 },
+      "inputModes": ["mouse", "keyboard", "gamepad"]
+    }
+  },
+  "spatialProfiles": {
+    "screen": { "id": "screen", "mode": "screen", "units": "pixels" }
+  },
+  "screens": {
+    "combat": {
+      "id": "combat",
+      "name": "Combat",
+      "surfaceIds": ["main_surface"],
+      "rootNodes": [
+        { "kind": "group", "id": "vitals_group" },
+        { "kind": "block_instance", "id": "left_ability_bar" },
+        { "kind": "block_instance", "id": "right_ability_bar" }
+      ]
+    }
+  },
+  "surfaces": {
+    "main_surface": {
+      "id": "main_surface",
+      "name": "Main Screen",
+      "kind": "screen",
+      "size": { "width": 1920, "height": 1080 },
+      "platformProfileIds": ["desktop"],
+      "spatialProfileId": "screen"
+    }
+  },
+  "flows": {},
+  "groups": {
+    "vitals_group": {
+      "id": "vitals_group",
+      "name": "Player Vitals",
+      "screenId": "combat",
+      "surfaceId": "main_surface",
+      "children": [{ "kind": "component", "id": "player_health" }],
+      "layout": {
+        "mode": "column",
+        "position": { "x": 48, "y": 48 },
+        "size": { "width": 420, "height": 88 },
+        "gap": 8,
+        "align": "stretch"
+      },
+      "zIndex": 10
+    }
+  },
+  "components": {
+    "player_health": {
+      "id": "player_health",
+      "kind": "progress_bar",
+      "name": "Player Health",
+      "screenId": "combat",
+      "surfaceId": "main_surface",
+      "parentId": "vitals_group",
+      "layout": {
+        "mode": "absolute",
+        "size": { "width": 420, "height": 32 }
+      },
+      "zIndex": 20,
+      "styleId": "resource_bar",
+      "bindingIds": ["player_health_value"],
+      "accessibility": {
+        "label": "Player health",
+        "role": "progressbar"
+      }
+    }
+  },
+  "blockDefinitions": {
+    "ability_bar": {
+      "id": "ability_bar",
+      "version": 1,
+      "name": "Ability Bar",
+      "rootNodeIds": ["ability_root"],
+      "nodes": {
+        "ability_root": {
+          "id": "ability_root",
+          "kind": "group",
+          "children": ["ability_slot"],
+          "layout": {
+            "mode": "row",
+            "size": { "width": 320, "height": 64 },
+            "gap": 8
+          },
+          "zIndex": 0
+        },
+        "ability_slot": {
+          "id": "ability_slot",
+          "kind": "component",
+          "componentKind": "ability_slot",
+          "parentId": "ability_root",
+          "children": [],
+          "layout": {
+            "mode": "absolute",
+            "size": { "width": 56, "height": 56 }
+          },
+          "zIndex": 1,
+          "parameterBindings": {
+            "slot_label": "/content/label"
+          }
+        }
+      },
+      "parameters": {
+        "slot_label": {
+          "id": "slot_label",
+          "label": "Slot label",
+          "valueType": "string",
+          "required": true
+        }
+      }
+    }
+  },
+  "blockInstances": {
+    "left_ability_bar": {
+      "id": "left_ability_bar",
+      "definitionId": "ability_bar",
+      "definitionVersion": 1,
+      "screenId": "combat",
+      "surfaceId": "main_surface",
+      "layout": {
+        "mode": "absolute",
+        "position": { "x": 480, "y": 960 },
+        "size": { "width": 320, "height": 64 }
+      },
+      "zIndex": 30,
+      "parameterValues": { "slot_label": "1" },
+      "overrides": [
+        { "path": "/nodes/ability_root/layout/position/x", "value": 480 }
+      ]
+    },
+    "right_ability_bar": {
+      "id": "right_ability_bar",
+      "definitionId": "ability_bar",
+      "definitionVersion": 1,
+      "screenId": "combat",
+      "surfaceId": "main_surface",
+      "layout": {
+        "mode": "absolute",
+        "position": { "x": 1120, "y": 960 },
+        "size": { "width": 320, "height": 64 }
+      },
+      "zIndex": 30,
+      "parameterValues": { "slot_label": "2" },
+      "overrides": [
+        { "path": "/nodes/ability_root/layout/position/x", "value": 1120 }
+      ]
+    }
+  },
+  "designTokens": {
+    "colors": {
+      "health": "#d93445",
+      "panel": "#10141dcc"
+    },
+    "typography": {},
+    "spacing": { "sm": 8, "md": 16 },
+    "radii": { "panel": 6 },
+    "shadows": {},
+    "motion": {}
+  },
+  "styles": {
+    "resource_bar": {
+      "id": "resource_bar",
+      "name": "Resource Bar",
+      "properties": {
+        "fillToken": "health",
+        "backgroundToken": "panel"
+      }
+    }
+  },
+  "assets": {},
+  "bindings": {
+    "player_health_value": {
+      "id": "player_health_value",
+      "path": "player.health",
+      "valueType": "number",
+      "fallback": 100
+    }
+  },
+  "states": {},
+  "interactions": {},
+  "visibilityRules": {},
+  "animations": {},
+  "constraints": {
+    "safe_vitals": {
+      "id": "safe_vitals",
+      "kind": "inside_safe_area",
+      "targetIds": ["vitals_group"],
+      "parameters": {},
+      "priority": "required"
+    }
+  },
+  "provenance": {
+    "createdBy": "human",
+    "actorId": "fixture-author",
+    "createdAt": "2026-08-19T00:00:00.000Z"
+  }
+}

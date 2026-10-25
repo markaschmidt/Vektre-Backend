@@ -1,0 +1,157 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "additionalProperties": false,
+      "properties": {
+        "attributes": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "groupId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "id": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "required",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "__schema1": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$",
+      "type": "string"
+    },
+    "__schema2": {
+      "additionalProperties": {
+        "$ref": "#/$defs/__schema3"
+      },
+      "propertyNames": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "__schema3": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema3"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema3"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "__schema4": {
+      "additionalProperties": false,
+      "properties": {
+        "compatible": {
+          "type": "boolean"
+        },
+        "functionalNodeId": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "score": {
+          "type": "number"
+        },
+        "scoreBreakdown": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "visualNodeId": {
+          "$ref": "#/$defs/__schema1"
+        }
+      },
+      "required": [
+        "functionalNodeId",
+        "visualNodeId",
+        "score",
+        "scoreBreakdown",
+        "compatible"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/solver-input.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/__schema4"
+      },
+      "maxItems": 100000,
+      "type": "array"
+    },
+    "constraints": {
+      "items": {
+        "$ref": "#/$defs/__schema2"
+      },
+      "maxItems": 10000,
+      "type": "array"
+    },
+    "functionalNodes": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "type": "array"
+    },
+    "solverVersion": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "visualNodes": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "solverVersion",
+    "functionalNodes",
+    "visualNodes",
+    "candidates",
+    "constraints"
+  ],
+  "title": "Solver Input",
+  "type": "object"
+}

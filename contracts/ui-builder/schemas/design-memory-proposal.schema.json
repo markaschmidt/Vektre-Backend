@@ -1,0 +1,112 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema1": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema1"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema1"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/design-memory-proposal.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "enum": [
+        "lore",
+        "aesthetic",
+        "constraint",
+        "decision",
+        "rejected_direction",
+        "interaction_rule",
+        "terminology"
+      ],
+      "type": "string"
+    },
+    "proposalId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "rationale": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "type": "string"
+    },
+    "scope": {
+      "enum": [
+        "organization",
+        "project",
+        "document",
+        "screen",
+        "block",
+        "group",
+        "component"
+      ],
+      "type": "string"
+    },
+    "scopeId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$",
+      "type": "string"
+    },
+    "sourceMessageId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "structuredValue": {
+      "$ref": "#/$defs/__schema1"
+    },
+    "text": {
+      "maxLength": 10000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "visibility": {
+      "enum": [
+        "shared",
+        "private"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "proposalId",
+    "kind",
+    "scope",
+    "text",
+    "visibility",
+    "rationale"
+  ],
+  "title": "Design Memory Proposal",
+  "type": "object"
+}

@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 2,
+  "documentKind": "spatial_ui",
+  "metadata": {
+    "documentId": "fixture-vr-wrist-ui",
+    "title": "VR Wrist UI"
+  },
+  "platformProfiles": {
+    "vr": {
+      "id": "vr",
+      "platform": "vr",
+      "viewport": { "width": 1832, "height": 1920 },
+      "inputModes": ["gaze", "motion"]
+    }
+  },
+  "spatialProfiles": {
+    "left_wrist": {
+      "id": "left_wrist",
+      "mode": "wrist",
+      "units": "meters",
+      "pixelsPerMeter": 1000
+    }
+  },
+  "screens": {
+    "wrist_home": {
+      "id": "wrist_home",
+      "name": "Wrist Home",
+      "surfaceIds": ["wrist_surface"],
+      "rootNodes": [{ "kind": "component", "id": "wrist_status" }]
+    }
+  },
+  "surfaces": {
+    "wrist_surface": {
+      "id": "wrist_surface",
+      "name": "Left Wrist",
+      "kind": "wrist",
+      "size": { "width": 0.24, "height": 0.12 },
+      "position": { "x": 0, "y": 0.04, "z": 0.02 },
+      "rotationDegrees": { "x": -25, "y": 0, "z": 0 },
+      "platformProfileIds": ["vr"],
+      "spatialProfileId": "left_wrist"
+    }
+  },
+  "flows": {},
+  "groups": {},
+  "components": {
+    "wrist_status": {
+      "id": "wrist_status",
+      "kind": "text",
+      "name": "Status",
+      "screenId": "wrist_home",
+      "surfaceId": "wrist_surface",
+      "layout": {
+        "mode": "absolute",
+        "position": { "x": 0.02, "y": 0.02 },
+        "size": { "width": 0.2, "height": 0.08 },
+        "anchor": "center"
+      },
+      "zIndex": 1,
+      "content": { "text": "SYSTEM READY" },
+      "accessibility": {
+        "label": "System status",
+        "role": "status"
+      }
+    }
+  },
+  "blockDefinitions": {},
+  "blockInstances": {},
+  "designTokens": {
+    "colors": { "display": "#76f7c4" },
+    "typography": {
+      "status": { "family": "Vektre Sans", "size": 0.018 }
+    },
+    "spacing": {},
+    "radii": { "display": 0.008 },
+    "shadows": {},
+    "motion": {}
+  },
+  "styles": {},
+  "assets": {},
+  "bindings": {},
+  "states": {},
+  "interactions": {},
+  "visibilityRules": {},
+  "animations": {},
+  "constraints": {
+    "wrist_bounds": {
+      "id": "wrist_bounds",
+      "kind": "inside_safe_area",
+      "targetIds": ["wrist_status"],
+      "parameters": {},
+      "priority": "required"
+    }
+  },
+  "provenance": {
+    "createdBy": "human",
+    "createdAt": "2026-08-19T00:00:00.000Z"
+  }
+}

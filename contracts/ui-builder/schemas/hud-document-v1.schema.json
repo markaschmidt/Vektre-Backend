@@ -1,0 +1,202 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "additionalProperties": {
+        "$ref": "#/$defs/__schema1"
+      },
+      "propertyNames": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "__schema1": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema1"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema1"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "__schema2": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$",
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/hud-document-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "animations": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "type": "array"
+    },
+    "assets": {
+      "additionalProperties": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "propertyNames": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "bindings": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "type": "array"
+    },
+    "constraints": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "type": "array"
+    },
+    "designTokens": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "metadata": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "nodes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "accessibility": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "anchor": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "assetRefs": {
+            "items": {
+              "$ref": "#/$defs/__schema2"
+            },
+            "type": "array"
+          },
+          "binding": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "content": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "id": {
+            "$ref": "#/$defs/__schema2"
+          },
+          "interactions": {
+            "items": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "layout": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "parentId": {
+            "$ref": "#/$defs/__schema2"
+          },
+          "states": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "styleRef": {
+            "$ref": "#/$defs/__schema2"
+          },
+          "surfaceId": {
+            "$ref": "#/$defs/__schema2"
+          },
+          "transform": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "visibilityRules": {
+            "items": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "type": "array"
+          },
+          "zIndex": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "platformProfiles": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "type": "array"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "type": "number"
+    },
+    "states": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "type": "array"
+    },
+    "surfaces": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "metadata",
+    "platformProfiles",
+    "surfaces",
+    "designTokens",
+    "assets",
+    "nodes",
+    "bindings",
+    "states",
+    "animations",
+    "constraints"
+  ],
+  "title": "Legacy HUD Document v1",
+  "type": "object"
+}

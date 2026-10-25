@@ -1,0 +1,43 @@
+{
+  "name": "@markaschmidt/ui-builder-contracts",
+  "version": "0.1.1",
+  "description": "Portable contracts for Vektre collaborative UI documents and AI workflows",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "files": [
+    "dist",
+    "schemas",
+    "python",
+    "fixtures",
+    "README.md",
+    "FRONTEND.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/markaschmidt/Vektre-Backend.git",
+    "directory": "contracts/ui-builder"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "pnpm run build",
+    "generate:schemas": "ts-node --project tsconfig.scripts.json scripts/generate-json-schema.ts",
+    "generate:python": "bash scripts/generate-python.sh",
+    "generate:hashes": "ts-node --files --project tsconfig.scripts.json scripts/generate-fixture-hashes.ts",
+    "generate": "pnpm run generate:schemas && pnpm run generate:python && pnpm run generate:hashes",
+    "test": "jest --config jest.config.cjs --runInBand",
+    "verify:node": "ts-node --files --project tsconfig.scripts.json scripts/verify-contracts.ts",
+    "verify:python": "uv run --no-project --with \"pydantic>=2,<3\" --with \"rfc8785>=0.1,<1\" -- python scripts/verify-python.py",
+    "verify": "pnpm run check:generated && pnpm run build && pnpm run test && pnpm run verify:node && pnpm run verify:python",
+    "check:generated": "bash scripts/check-generated.sh",
+    "pack:check": "npm pack --dry-run"
+  },
+  "peerDependencies": {
+    "yjs": "^13.6.0",
+    "zod": "^4.0.0"
+  },
+  "license": "UNLICENSED"
+}

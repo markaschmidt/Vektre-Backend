@@ -1,0 +1,85 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema1": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/agent-step.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempt": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    },
+    "createdAt": {
+      "$ref": "#/$defs/__schema1"
+    },
+    "errorCode": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "inputRef": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "outputRef": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "runId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "stage": {
+      "enum": [
+        "understand",
+        "propose_ux",
+        "propose_visual",
+        "analyze_references",
+        "plan_patch",
+        "match_compose",
+        "critique_validate"
+      ],
+      "type": "string"
+    },
+    "stageExecutionId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "type": "string"
+    },
+    "stepId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "updatedAt": {
+      "$ref": "#/$defs/__schema1"
+    }
+  },
+  "required": [
+    "stepId",
+    "runId",
+    "stageExecutionId",
+    "stage",
+    "attempt",
+    "status",
+    "createdAt",
+    "updatedAt"
+  ],
+  "title": "Agent Step",
+  "type": "object"
+}

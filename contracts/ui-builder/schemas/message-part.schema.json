@@ -1,0 +1,961 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "__schema1": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "__schema10": {
+      "additionalProperties": false,
+      "properties": {
+        "focusOrder": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "hint": {
+          "maxLength": 1024,
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 512,
+          "type": "string"
+        },
+        "role": {
+          "maxLength": 64,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "__schema11": {
+      "additionalProperties": {
+        "$ref": "#/$defs/__schema12"
+      },
+      "propertyNames": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "__schema12": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema12"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema12"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "__schema13": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "pattern": "^\\/(?:[^/~]|~[01])+(?:\\/(?:[^/~]|~[01])+)*$",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/__schema12"
+        }
+      },
+      "required": [
+        "path",
+        "value"
+      ],
+      "type": "object"
+    },
+    "__schema14": {
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "$ref": "#/$defs/__schema15"
+        },
+        "formatter": {
+          "maxLength": 256,
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "type": "string"
+        },
+        "valueType": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "object",
+            "array"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "valueType"
+      ],
+      "type": "object"
+    },
+    "__schema15": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema15"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema15"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "__schema2": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$",
+      "type": "string"
+    },
+    "__schema3": {
+      "additionalProperties": false,
+      "properties": {
+        "activeState": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema2"
+            },
+            "name": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "values": {
+              "$ref": "#/$defs/__schema11"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "values"
+          ],
+          "type": "object"
+        },
+        "bindings": {
+          "items": {
+            "$ref": "#/$defs/__schema14"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
+        "content": {
+          "$ref": "#/$defs/__schema12"
+        },
+        "id": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "kind": {
+          "enum": [
+            "group",
+            "component",
+            "block_instance"
+          ],
+          "type": "string"
+        },
+        "node": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "accessibility": {
+                  "$ref": "#/$defs/__schema10"
+                },
+                "children": {
+                  "items": {
+                    "$ref": "#/$defs/__schema4"
+                  },
+                  "maxItems": 2048,
+                  "type": "array"
+                },
+                "id": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "layout": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "metadata": {
+                  "$ref": "#/$defs/__schema11"
+                },
+                "name": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "parentId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "screenId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "styleId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "surfaceId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "transform": {
+                  "$ref": "#/$defs/__schema8"
+                },
+                "visibilityRuleIds": {
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "zIndex": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "screenId",
+                "surfaceId",
+                "children",
+                "layout",
+                "zIndex"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "accessibility": {
+                  "$ref": "#/$defs/__schema10"
+                },
+                "assetIds": {
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "bindingIds": {
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "content": {
+                  "$ref": "#/$defs/__schema11"
+                },
+                "id": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "interactionIds": {
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "kind": {
+                  "enum": [
+                    "container",
+                    "text",
+                    "image",
+                    "button",
+                    "progress_bar",
+                    "meter",
+                    "counter",
+                    "reticle",
+                    "minimap",
+                    "compass",
+                    "objective_list",
+                    "ability_slot",
+                    "inventory_grid",
+                    "radial_menu",
+                    "dialogue",
+                    "subtitle",
+                    "notification",
+                    "status_effect",
+                    "input",
+                    "slider",
+                    "toggle",
+                    "list",
+                    "spacer"
+                  ],
+                  "type": "string"
+                },
+                "layout": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "metadata": {
+                  "$ref": "#/$defs/__schema11"
+                },
+                "name": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "parentId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "screenId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "stateIds": {
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "styleId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "surfaceId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "transform": {
+                  "$ref": "#/$defs/__schema8"
+                },
+                "visibilityRuleIds": {
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "maxItems": 128,
+                  "type": "array"
+                },
+                "zIndex": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "name",
+                "screenId",
+                "surfaceId",
+                "layout",
+                "zIndex"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "definitionId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "definitionVersion": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991,
+                  "type": "integer"
+                },
+                "id": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "layout": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "metadata": {
+                  "$ref": "#/$defs/__schema11"
+                },
+                "overrides": {
+                  "items": {
+                    "$ref": "#/$defs/__schema13"
+                  },
+                  "maxItems": 1024,
+                  "type": "array"
+                },
+                "parameterValues": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema12"
+                  },
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "parentId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "screenId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "surfaceId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "transform": {
+                  "$ref": "#/$defs/__schema8"
+                },
+                "zIndex": {
+                  "maximum": 9007199254740991,
+                  "minimum": -9007199254740991,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "definitionId",
+                "definitionVersion",
+                "screenId",
+                "surfaceId",
+                "layout",
+                "zIndex",
+                "parameterValues",
+                "overrides"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "resolvedStyle": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema2"
+            },
+            "name": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "properties": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "stateOverrides": {
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema11"
+              },
+              "propertyNames": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "properties"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "node",
+        "bindings"
+      ],
+      "type": "object"
+    },
+    "__schema4": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "kind": {
+          "enum": [
+            "group",
+            "component",
+            "block_instance"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "type": "object"
+    },
+    "__schema5": {
+      "additionalProperties": false,
+      "properties": {
+        "align": {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch",
+            "space_between"
+          ],
+          "type": "string"
+        },
+        "anchor": {
+          "enum": [
+            "top_left",
+            "top",
+            "top_right",
+            "left",
+            "center",
+            "right",
+            "bottom_left",
+            "bottom",
+            "bottom_right",
+            "stretch"
+          ],
+          "type": "string"
+        },
+        "gap": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "gridColumns": {
+          "exclusiveMinimum": 0,
+          "maximum": 64,
+          "type": "integer"
+        },
+        "justify": {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch",
+            "space_between"
+          ],
+          "type": "string"
+        },
+        "maxSize": {
+          "$ref": "#/$defs/__schema7"
+        },
+        "minSize": {
+          "$ref": "#/$defs/__schema7"
+        },
+        "mode": {
+          "enum": [
+            "absolute",
+            "row",
+            "column",
+            "grid",
+            "stack"
+          ],
+          "type": "string"
+        },
+        "padding": {
+          "additionalProperties": false,
+          "properties": {
+            "bottom": {
+              "type": "number"
+            },
+            "left": {
+              "type": "number"
+            },
+            "right": {
+              "type": "number"
+            },
+            "top": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+          ],
+          "type": "object"
+        },
+        "position": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "size": {
+          "$ref": "#/$defs/__schema7"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "type": "object"
+    },
+    "__schema6": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "__schema7": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "width": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "__schema8": {
+      "additionalProperties": false,
+      "properties": {
+        "pivot": {
+          "$ref": "#/$defs/__schema6"
+        },
+        "rotationDegrees": {
+          "$ref": "#/$defs/__schema9"
+        },
+        "scale": {
+          "$ref": "#/$defs/__schema9"
+        },
+        "translation": {
+          "$ref": "#/$defs/__schema9"
+        }
+      },
+      "type": "object"
+    },
+    "__schema9": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/message-part.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 50000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "type": {
+          "const": "text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "purpose": {
+          "enum": [
+            "reference",
+            "style",
+            "content",
+            "comparison"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "image_asset",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "assetId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "documentHash": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "referenceKind": {
+          "enum": [
+            "screen",
+            "group",
+            "component",
+            "block"
+          ],
+          "type": "string"
+        },
+        "semanticId": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "type": {
+          "const": "ui_reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "referenceKind",
+        "semanticId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "contentHash": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "documentId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "headerBlockId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "type": {
+          "const": "storyboard_section",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "documentId",
+        "headerBlockId",
+        "contentHash"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "commentId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "type": {
+          "const": "comment",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "commentId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "artifactId": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "artifactKind": {
+          "enum": [
+            "document",
+            "file",
+            "asset",
+            "lore",
+            "repository"
+          ],
+          "type": "string"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "type": {
+          "const": "project_artifact",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "artifactKind",
+        "artifactId"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "editor_view",
+          "type": "string"
+        },
+        "view": {
+          "additionalProperties": false,
+          "properties": {
+            "documentHash": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "elements": {
+              "items": {
+                "$ref": "#/$defs/__schema3"
+              },
+              "maxItems": 512,
+              "type": "array"
+            },
+            "fieldOfView": {
+              "additionalProperties": false,
+              "properties": {
+                "activeStateId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "inspectorPath": {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                "screenId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "selectedIds": {
+                  "items": {
+                    "$ref": "#/$defs/__schema2"
+                  },
+                  "maxItems": 256,
+                  "type": "array"
+                },
+                "surfaceId": {
+                  "$ref": "#/$defs/__schema2"
+                },
+                "visibleRect": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "height": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "width": {
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "width",
+                    "height"
+                  ],
+                  "type": "object"
+                },
+                "zoom": {
+                  "exclusiveMinimum": 0,
+                  "maximum": 64,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "screenId",
+                "visibleRect",
+                "zoom",
+                "selectedIds"
+              ],
+              "type": "object"
+            },
+            "schemaVersion": {
+              "const": 1,
+              "type": "number"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "documentHash",
+            "fieldOfView"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "view"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Multimodal Message Part"
+}

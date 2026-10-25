@@ -1,0 +1,30 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$id": "https://schemas.vektre.dev/ui-builder/run-review-request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "alternativeId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "approve",
+        "reject",
+        "request_changes"
+      ],
+      "type": "string"
+    },
+    "notes": {
+      "maxLength": 2048,
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision"
+  ],
+  "title": "UI Agent Run Review Request",
+  "type": "object"
+}

@@ -1,0 +1,61 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/thread-summary.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "documentId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "lastMessageAt": {
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "type": "string"
+    },
+    "ownerUserId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "projectId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "type": "string"
+    },
+    "threadId": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "title": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "visibility": {
+      "enum": [
+        "shared",
+        "private"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "threadId",
+    "projectId",
+    "ownerUserId",
+    "title",
+    "visibility",
+    "status"
+  ],
+  "title": "UI AI Thread Summary",
+  "type": "object"
+}

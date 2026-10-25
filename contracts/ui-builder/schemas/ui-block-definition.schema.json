@@ -1,0 +1,366 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$",
+      "type": "string"
+    },
+    "__schema1": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "width": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "__schema2": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/__schema2"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema2"
+          },
+          "propertyNames": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "__schema3": {
+      "maxLength": 64,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/ui-block-definition.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "maxLength": 2048,
+      "type": "string"
+    },
+    "id": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "nodes": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "children": {
+            "items": {
+              "$ref": "#/$defs/__schema0"
+            },
+            "maxItems": 2048,
+            "type": "array"
+          },
+          "componentKind": {
+            "enum": [
+              "container",
+              "text",
+              "image",
+              "button",
+              "progress_bar",
+              "meter",
+              "counter",
+              "reticle",
+              "minimap",
+              "compass",
+              "objective_list",
+              "ability_slot",
+              "inventory_grid",
+              "radial_menu",
+              "dialogue",
+              "subtitle",
+              "notification",
+              "status_effect",
+              "input",
+              "slider",
+              "toggle",
+              "list",
+              "spacer"
+            ],
+            "type": "string"
+          },
+          "content": {
+            "additionalProperties": {
+              "$ref": "#/$defs/__schema2"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "id": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "kind": {
+            "enum": [
+              "group",
+              "component"
+            ],
+            "type": "string"
+          },
+          "layout": {
+            "additionalProperties": false,
+            "properties": {
+              "align": {
+                "enum": [
+                  "start",
+                  "center",
+                  "end",
+                  "stretch",
+                  "space_between"
+                ],
+                "type": "string"
+              },
+              "anchor": {
+                "enum": [
+                  "top_left",
+                  "top",
+                  "top_right",
+                  "left",
+                  "center",
+                  "right",
+                  "bottom_left",
+                  "bottom",
+                  "bottom_right",
+                  "stretch"
+                ],
+                "type": "string"
+              },
+              "gap": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "gridColumns": {
+                "exclusiveMinimum": 0,
+                "maximum": 64,
+                "type": "integer"
+              },
+              "justify": {
+                "enum": [
+                  "start",
+                  "center",
+                  "end",
+                  "stretch",
+                  "space_between"
+                ],
+                "type": "string"
+              },
+              "maxSize": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "minSize": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "mode": {
+                "enum": [
+                  "absolute",
+                  "row",
+                  "column",
+                  "grid",
+                  "stack"
+                ],
+                "type": "string"
+              },
+              "padding": {
+                "additionalProperties": false,
+                "properties": {
+                  "bottom": {
+                    "type": "number"
+                  },
+                  "left": {
+                    "type": "number"
+                  },
+                  "right": {
+                    "type": "number"
+                  },
+                  "top": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "top",
+                  "right",
+                  "bottom",
+                  "left"
+                ],
+                "type": "object"
+              },
+              "position": {
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "x",
+                  "y"
+                ],
+                "type": "object"
+              },
+              "size": {
+                "$ref": "#/$defs/__schema1"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          },
+          "parameterBindings": {
+            "additionalProperties": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "parentId": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "styleId": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "zIndex": {
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "children",
+          "layout",
+          "zIndex"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "parameters": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "properties": {
+          "defaultValue": {
+            "$ref": "#/$defs/__schema2"
+          },
+          "id": {
+            "$ref": "#/$defs/__schema0"
+          },
+          "label": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "valueType": {
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "color",
+              "asset",
+              "json"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "valueType",
+          "required"
+        ],
+        "type": "object"
+      },
+      "propertyNames": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "rootNodeIds": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "type": "array"
+    },
+    "sourceBlockId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "$ref": "#/$defs/__schema3"
+      },
+      "maxItems": 64,
+      "type": "array"
+    },
+    "version": {
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "name",
+    "rootNodeIds",
+    "nodes",
+    "parameters"
+  ],
+  "title": "UI Block Definition",
+  "type": "object"
+}

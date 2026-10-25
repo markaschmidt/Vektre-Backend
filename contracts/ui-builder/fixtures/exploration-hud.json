@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 2,
+  "documentKind": "hud",
+  "metadata": {
+    "documentId": "fixture-exploration-hud",
+    "title": "Exploration HUD"
+  },
+  "platformProfiles": {
+    "desktop": {
+      "id": "desktop",
+      "platform": "desktop",
+      "viewport": { "width": 2560, "height": 1440 },
+      "inputModes": ["mouse", "keyboard", "gamepad"]
+    }
+  },
+  "spatialProfiles": {
+    "screen": { "id": "screen", "mode": "screen", "units": "pixels" }
+  },
+  "screens": {
+    "exploration": {
+      "id": "exploration",
+      "name": "Exploration",
+      "surfaceIds": ["main_surface"],
+      "rootNodes": [{ "kind": "component", "id": "world_minimap" }]
+    }
+  },
+  "surfaces": {
+    "main_surface": {
+      "id": "main_surface",
+      "name": "Main Screen",
+      "kind": "screen",
+      "size": { "width": 2560, "height": 1440 },
+      "platformProfileIds": ["desktop"],
+      "spatialProfileId": "screen"
+    }
+  },
+  "flows": {},
+  "groups": {},
+  "components": {
+    "world_minimap": {
+      "id": "world_minimap",
+      "kind": "minimap",
+      "name": "World Minimap",
+      "screenId": "exploration",
+      "surfaceId": "main_surface",
+      "layout": {
+        "mode": "absolute",
+        "position": { "x": 2240, "y": 48 },
+        "size": { "width": 272, "height": 272 },
+        "anchor": "top_right"
+      },
+      "zIndex": 10,
+      "bindingIds": ["player_position"],
+      "accessibility": {
+        "label": "Area map",
+        "role": "img"
+      }
+    }
+  },
+  "blockDefinitions": {},
+  "blockInstances": {},
+  "designTokens": {
+    "colors": { "ink": "#f4ead7", "panel": "#3d4a3ccc" },
+    "typography": {},
+    "spacing": { "md": 16 },
+    "radii": { "round": 136 },
+    "shadows": {},
+    "motion": {}
+  },
+  "styles": {},
+  "assets": {},
+  "bindings": {
+    "player_position": {
+      "id": "player_position",
+      "path": "player.worldPosition",
+      "valueType": "object",
+      "fallback": { "x": 0, "y": 0, "z": 0 }
+    }
+  },
+  "states": {},
+  "interactions": {},
+  "visibilityRules": {},
+  "animations": {},
+  "constraints": {},
+  "provenance": {
+    "createdBy": "human",
+    "createdAt": "2026-08-19T00:00:00.000Z"
+  }
+}

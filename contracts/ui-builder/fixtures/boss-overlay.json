@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 2,
+  "documentKind": "overlay",
+  "metadata": {
+    "documentId": "fixture-boss-overlay",
+    "title": "Boss Encounter Overlay"
+  },
+  "platformProfiles": {
+    "desktop": {
+      "id": "desktop",
+      "platform": "desktop",
+      "viewport": { "width": 1920, "height": 1080 },
+      "inputModes": ["mouse", "keyboard"]
+    }
+  },
+  "spatialProfiles": {
+    "screen": { "id": "screen", "mode": "screen", "units": "pixels" }
+  },
+  "screens": {
+    "encounter": {
+      "id": "encounter",
+      "name": "Encounter",
+      "surfaceIds": ["overlay_surface"],
+      "rootNodes": [{ "kind": "component", "id": "boss_health" }]
+    }
+  },
+  "surfaces": {
+    "overlay_surface": {
+      "id": "overlay_surface",
+      "name": "Overlay",
+      "kind": "screen",
+      "size": { "width": 1920, "height": 1080 },
+      "platformProfileIds": ["desktop"],
+      "spatialProfileId": "screen"
+    }
+  },
+  "flows": {},
+  "groups": {},
+  "components": {
+    "boss_health": {
+      "id": "boss_health",
+      "kind": "progress_bar",
+      "name": "Boss Health",
+      "screenId": "encounter",
+      "surfaceId": "overlay_surface",
+      "layout": {
+        "mode": "absolute",
+        "position": { "x": 460, "y": 920 },
+        "size": { "width": 1000, "height": 44 },
+        "anchor": "bottom"
+      },
+      "zIndex": 100,
+      "bindingIds": ["boss_health_value"],
+      "visibilityRuleIds": ["boss_active"],
+      "accessibility": {
+        "label": "Boss health",
+        "role": "progressbar"
+      }
+    }
+  },
+  "blockDefinitions": {},
+  "blockInstances": {},
+  "designTokens": {
+    "colors": { "boss": "#8b1e3f" },
+    "typography": {},
+    "spacing": {},
+    "radii": { "bar": 4 },
+    "shadows": {},
+    "motion": {}
+  },
+  "styles": {},
+  "assets": {},
+  "bindings": {
+    "boss_health_value": {
+      "id": "boss_health_value",
+      "path": "encounter.boss.health",
+      "valueType": "number",
+      "fallback": 1
+    }
+  },
+  "states": {},
+  "interactions": {},
+  "visibilityRules": {
+    "boss_active": {
+      "id": "boss_active",
+      "expression": "encounter.boss.active == true",
+      "description": "Only visible during a boss encounter"
+    }
+  },
+  "animations": {
+    "boss_damage_flash": {
+      "id": "boss_damage_flash",
+      "targetId": "boss_health",
+      "property": "opacity",
+      "durationMs": 180,
+      "easing": "ease-out",
+      "keyframes": [
+        { "offset": 0, "value": 1 },
+        { "offset": 0.5, "value": 0.45 },
+        { "offset": 1, "value": 1 }
+      ]
+    }
+  },
+  "constraints": {},
+  "provenance": {
+    "createdBy": "human",
+    "createdAt": "2026-08-19T00:00:00.000Z"
+  }
+}

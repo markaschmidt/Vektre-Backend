@@ -1,0 +1,53 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$defs": {
+    "__schema0": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_]*(?:[.-][a-z0-9_]+)*$",
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.vektre.dev/ui-builder/validation-issue.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "message": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "type": "string"
+    },
+    "path": {
+      "maxLength": 2048,
+      "type": "string"
+    },
+    "relatedIds": {
+      "items": {
+        "$ref": "#/$defs/__schema0"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "severity": {
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "severity",
+    "message",
+    "relatedIds"
+  ],
+  "title": "Validation Issue",
+  "type": "object"
+}

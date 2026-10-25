@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "documentId": "legacy-combat-hud",
+    "title": "Legacy Combat HUD",
+    "customLore": "The crimson bar represents vitality."
+  },
+  "platformProfiles": [
+    { "platform": "desktop", "width": 1920, "height": 1080 }
+  ],
+  "surfaces": [
+    { "id": "legacy_surface", "kind": "screen", "width": 1920, "height": 1080 }
+  ],
+  "designTokens": {
+    "colors": { "health": "#cc3344" }
+  },
+  "assets": {
+    "health_frame": { "assetId": "asset-health-frame", "role": "frame" }
+  },
+  "nodes": [
+    {
+      "id": "legacy_vitals",
+      "kind": "group",
+      "surfaceId": "legacy_surface",
+      "layout": { "mode": "column", "x": 32, "y": 32 },
+      "zIndex": 10
+    },
+    {
+      "id": "legacy_health",
+      "kind": "progress_bar",
+      "parentId": "legacy_vitals",
+      "surfaceId": "legacy_surface",
+      "layout": { "width": 400, "height": 36 },
+      "anchor": "top_left",
+      "zIndex": 20,
+      "assetRefs": ["health_frame"],
+      "content": { "label": "HEALTH" },
+      "binding": "player.health",
+      "states": { "critical": { "threshold": 0.2 } },
+      "interactions": [],
+      "visibilityRules": [],
+      "accessibility": { "label": "Player health" }
+    }
+  ],
+  "bindings": [
+    { "id": "player_health", "path": "player.health", "valueType": "number" }
+  ],
+  "states": [{ "id": "critical", "values": { "threshold": 0.2 } }],
+  "animations": [],
+  "constraints": [
+    {
+      "id": "safe_vitals",
+      "kind": "inside_safe_area",
+      "targetIds": ["legacy_vitals"]
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "$comment": "Vektre contract version 1",
+  "$id": "https://schemas.vektre.dev/ui-builder/source-citation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contentHash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "excerpt": {
+      "anyOf": [
+        {
+          "maxLength": 2048,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "label": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "locator": {
+      "anyOf": [
+        {
+          "maxLength": 1024,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "type": "string"
+    },
+    "sourceKind": {
+      "enum": [
+        "message",
+        "document",
+        "screen",
+        "group",
+        "component",
+        "block",
+        "asset",
+        "storyboard",
+        "comment",
+        "artifact",
+        "memory"
+      ],
+      "type": "string"
+    },
+    "visibility": {
+      "enum": [
+        "shared",
+        "private",
+        "system"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "sourceId",
+    "sourceKind",
+    "contentHash",
+    "visibility"
+  ],
+  "title": "Source Citation",
+  "type": "object"
+}
