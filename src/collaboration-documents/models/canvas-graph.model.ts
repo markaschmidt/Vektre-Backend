@@ -20,12 +20,7 @@
 
 export const CANVAS_YJS_SCHEMA_VERSION = 'canvas.v2' as const;
 
-export type CanvasPortDataType =
-  | 'text'
-  | 'image'
-  | 'model'
-  | 'asset'
-  | 'any';
+export type CanvasPortDataType = 'text' | 'image' | 'model' | 'asset' | 'any';
 
 export type CanvasNodeKind =
   | 'storyboard_section'
@@ -473,8 +468,10 @@ export function arePortsCompatible(
 ): boolean {
   if (source === 'any' || target === 'any') return true;
   if (source === target) return true;
-  if (source === 'asset' && (target === 'image' || target === 'model')) return true;
-  if ((source === 'image' || source === 'model') && target === 'asset') return true;
+  if (source === 'asset' && (target === 'image' || target === 'model'))
+    return true;
+  if ((source === 'image' || source === 'model') && target === 'asset')
+    return true;
   return false;
 }
 

@@ -144,7 +144,10 @@ export class RiggingProcessor extends WorkerHost {
       );
 
       if (terminal.status === 'failed') {
-        await this.appData.updateProjectAssetStatus(data.outputAssetId, 'failed');
+        await this.appData.updateProjectAssetStatus(
+          data.outputAssetId,
+          'failed',
+        );
         await this.appData.updateRiggingJob(data.jobId, {
           status: 'failed',
           errorMessage: terminal.error ?? 'RigAnything failed',
@@ -178,10 +181,15 @@ export class RiggingProcessor extends WorkerHost {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const retryable =
-        err instanceof ProviderError ? err.retryable : /interrupted_by_restart|timed out|5\d\d/.test(message);
+        err instanceof ProviderError
+          ? err.retryable
+          : /interrupted_by_restart|timed out|5\d\d/.test(message);
 
       if (!retryable) {
-        await this.appData.updateProjectAssetStatus(data.outputAssetId, 'failed');
+        await this.appData.updateProjectAssetStatus(
+          data.outputAssetId,
+          'failed',
+        );
         await this.appData.updateRiggingJob(data.jobId, {
           status: 'failed',
           errorMessage: message.slice(0, 2000),

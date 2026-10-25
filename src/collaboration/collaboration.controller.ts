@@ -110,7 +110,12 @@ export class CollaborationController {
     @Body() dto: UpdateMemberRoleDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.collaboration.changeMemberRole(projectId, memberId, dto.role, user.id);
+    return this.collaboration.changeMemberRole(
+      projectId,
+      memberId,
+      dto.role,
+      user.id,
+    );
   }
 
   /**

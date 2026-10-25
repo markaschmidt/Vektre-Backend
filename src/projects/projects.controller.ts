@@ -198,7 +198,12 @@ export class ProjectsController {
     @Param('assetId') assetId: string,
     @Body() dto: UploadProjectAssetChunkDto,
   ) {
-    return this.assetsService.uploadAssetChunk(user.id, projectId, assetId, dto);
+    return this.assetsService.uploadAssetChunk(
+      user.id,
+      projectId,
+      assetId,
+      dto,
+    );
   }
 
   /**

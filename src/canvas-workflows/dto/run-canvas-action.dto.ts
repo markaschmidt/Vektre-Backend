@@ -62,7 +62,7 @@ export class RunCanvasActionDto {
   @MaxLength(128)
   runId!: string;
 
-  @IsIn(CANVAS_ACTION_KINDS as unknown as string[])
+  @IsIn(CANVAS_ACTION_KINDS)
   actionKind!: (typeof CANVAS_ACTION_KINDS)[number];
 
   @IsOptional()

@@ -105,7 +105,7 @@ export class NotionController {
 
   /**
    * POST /integrations/notion/pages/export
-   * Import (read) a Notion page into SpacetimeDB via a background job.
+   * Import (read) a Notion page via a background job.
    */
   @Post('pages/import')
   @HttpCode(HttpStatus.ACCEPTED)

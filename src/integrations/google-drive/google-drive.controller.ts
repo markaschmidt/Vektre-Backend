@@ -19,10 +19,19 @@ import { CurrentUser } from '../../auth/current-user.decorator.js';
 import type { AuthenticatedUser } from '../../auth/authenticated-user.model.js';
 import { AppDataService } from '../app-data.service.js';
 import { GoogleDriveService } from './google-drive.service.js';
-import { INTEGRATION_SYNC_QUEUE, JOB_GOOGLE_DRIVE_IMPORT, JOB_GOOGLE_DRIVE_SYNC } from '../../queues/queue-names.js';
+import {
+  INTEGRATION_SYNC_QUEUE,
+  JOB_GOOGLE_DRIVE_IMPORT,
+  JOB_GOOGLE_DRIVE_SYNC,
+} from '../../queues/queue-names.js';
 import { bullJobId } from '../../queues/bull-job-id.js';
 import { defaultJobOptions } from '../../queues/job-options.js';
-import { GoogleDriveListFilesDto, GoogleDriveImportFileDto, GoogleDriveExportDto, GoogleDriveConnectDto } from './google-drive.dto.js';
+import {
+  GoogleDriveListFilesDto,
+  GoogleDriveImportFileDto,
+  GoogleDriveExportDto,
+  GoogleDriveConnectDto,
+} from './google-drive.dto.js';
 import type { GoogleDriveImportJob } from './google-drive.model.js';
 import { ProviderError } from '../provider-error.model.js';
 import { AssetsService } from '../../projects/assets.service.js';
@@ -98,7 +107,7 @@ export class GoogleDriveController {
 
   /**
    * POST /integrations/google-drive/files/:fileId/import
-   * Queue a download/export and record the result in SpacetimeDB.
+   * Queue a download/export and record the result in app data.
    * Returns 202 with requestId for status polling.
    */
   @Post('files/:fileId/import')
@@ -146,7 +155,7 @@ export class GoogleDriveController {
 
   /**
    * POST /integrations/google-drive/sync
-   * Trigger a full metadata sync of the user's Drive into SpacetimeDB.
+   * Trigger a full metadata sync of the user's Drive into app data.
    */
   @Post('sync')
   @HttpCode(HttpStatus.ACCEPTED)
@@ -236,16 +245,25 @@ export class GoogleDriveController {
     // ── Storage reference (staged .vkts, models, etc.) ─────────────────────
     if (dto.assetId) {
       if (!dto.projectId) {
-        throw new BadRequestException('projectId is required when exporting assetId');
+        throw new BadRequestException(
+          'projectId is required when exporting assetId',
+        );
       }
 
-      const asset = await this.assets.getAssetBytes(userId, dto.projectId, dto.assetId);
+      const asset = await this.assets.getAssetBytes(
+        userId,
+        dto.projectId,
+        dto.assetId,
+      );
       const mimeType = resolveVektreMimeType(
         dto.mimeType ?? asset.mimeType ?? 'application/octet-stream',
       );
       const metadataFileName =
-        typeof asset.metadata?.fileName === 'string' ? asset.metadata.fileName : undefined;
-      const rawName = dto.fileName ?? dto.title ?? metadataFileName ?? asset.name;
+        typeof asset.metadata?.fileName === 'string'
+          ? asset.metadata.fileName
+          : undefined;
+      const rawName =
+        dto.fileName ?? dto.title ?? metadataFileName ?? asset.name;
 
       return {
         input: {
@@ -260,10 +278,14 @@ export class GoogleDriveController {
 
     // ── Inline binary (base64) — small local-only fallback ─────────────────
     if (dto.contentBase64) {
-      const mimeType = resolveVektreMimeType(dto.mimeType ?? 'application/octet-stream');
+      const mimeType = resolveVektreMimeType(
+        dto.mimeType ?? 'application/octet-stream',
+      );
       const rawName = dto.fileName ?? dto.title;
       if (!rawName?.trim()) {
-        throw new BadRequestException('fileName or title is required for binary export');
+        throw new BadRequestException(
+          'fileName or title is required for binary export',
+        );
       }
       let buffer: Buffer;
       try {
@@ -292,7 +314,9 @@ export class GoogleDriveController {
     if (!fileName?.trim()) {
       throw new BadRequestException('fileName or title is required');
     }
-    const targetMimeType = this.driveService.resolveExportTargetMimeType(dto.mimeType);
+    const targetMimeType = this.driveService.resolveExportTargetMimeType(
+      dto.mimeType,
+    );
     return {
       input: {
         fileName: fileName.trim(),
@@ -331,7 +355,10 @@ function resolveVektreMimeType(mimeType: string): string {
  * For everything else the caller is responsible for including the extension.
  */
 function ensureVektreExtension(fileName: string, mimeType: string): string {
-  if (mimeType === VEKTRE_MIME_TYPES.VKTS && !fileName.toLowerCase().endsWith('.vkts')) {
+  if (
+    mimeType === VEKTRE_MIME_TYPES.VKTS &&
+    !fileName.toLowerCase().endsWith('.vkts')
+  ) {
     return `${fileName}.vkts`;
   }
   return fileName;

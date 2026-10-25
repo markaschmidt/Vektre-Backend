@@ -3,7 +3,6 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -24,12 +23,17 @@ import { defaultJobOptions } from '../queues/job-options.js';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { CollaborationService } from '../collaboration/collaboration.service.js';
 import { resolveMemberUserId } from '../collaboration/member-ref.js';
+import { OrganizationsService } from '../organizations/organizations.service.js';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service.js';
 import { requireProjectAccess } from './project-access.js';
 import type {
   ProjectMemberRole,
   ProjectWorkspaceMode,
 } from '../integrations/app-data.types.js';
-import { resolvePostUpsertAssetStatus, normalizeAssetMetadata } from './asset-conventions.js';
+import {
+  resolvePostUpsertAssetStatus,
+  normalizeAssetMetadata,
+} from './asset-conventions.js';
 import {
   toProjectAssetListItem,
   type ProjectAssetListItem,
@@ -67,9 +71,15 @@ export class ProjectsService {
 
   constructor(
     @InjectQueue(PROJECT_OPS_QUEUE)
-    private readonly projectQueue: Queue<ProjectOpJobData, void, ProjectOpJobName>,
+    private readonly projectQueue: Queue<
+      ProjectOpJobData,
+      void,
+      ProjectOpJobName
+    >,
     private readonly appData: AppDataService,
     private readonly collaboration: CollaborationService,
+    private readonly organizations: OrganizationsService,
+    private readonly storageQuota: StorageQuotaService,
   ) {}
 
   async listProjects(userId: string) {
@@ -87,6 +97,9 @@ export class ProjectsService {
     this.assertName(dto.name, 'Project name is required');
     const workspaceMode = this.normalizeWorkspaceMode(dto.workspaceMode);
     const projectId = this.resolveProjectId(dto.projectId);
+    if (dto.organizationId) {
+      await this.organizations.requireExecutive(userId, dto.organizationId);
+    }
 
     const existing = await this.appData.getProjectForUser(userId, projectId);
     if (existing) {
@@ -100,6 +113,7 @@ export class ProjectsService {
       actorUserId: userId,
       projectId,
       ownerUserId: userId,
+      organizationId: dto.organizationId,
       name: dto.name,
       description: dto.description,
       workspaceMode,
@@ -124,7 +138,15 @@ export class ProjectsService {
     dto: UpdateProjectDto,
   ): Promise<QueuedProjectOperation> {
     await this.assertCanEditProject(userId, projectId);
-    if (dto.name !== undefined) this.assertName(dto.name, 'Project name is required');
+    if (dto.organizationId !== undefined) {
+      await this.assertCanAssignOrganization(
+        userId,
+        projectId,
+        dto.organizationId,
+      );
+    }
+    if (dto.name !== undefined)
+      this.assertName(dto.name, 'Project name is required');
     if (dto.workspaceMode !== undefined) {
       dto.workspaceMode = this.normalizeWorkspaceMode(dto.workspaceMode);
     }
@@ -134,6 +156,7 @@ export class ProjectsService {
       requestId,
       actorUserId: userId,
       projectId,
+      organizationId: dto.organizationId,
       name: dto.name,
       description: dto.description,
       workspaceMode: dto.workspaceMode,
@@ -158,7 +181,11 @@ export class ProjectsService {
   ): Promise<QueuedProjectOperation> {
     await this.assertCanManageProject(userId, projectId);
     const requestId = randomUUID();
-    const payload: ArchiveProjectJob = { requestId, actorUserId: userId, projectId };
+    const payload: ArchiveProjectJob = {
+      requestId,
+      actorUserId: userId,
+      projectId,
+    };
 
     await this.enqueueProjectJob(
       requestId,
@@ -177,7 +204,11 @@ export class ProjectsService {
   ): Promise<QueuedProjectOperation> {
     await this.assertProjectOwner(userId, projectId);
     const requestId = randomUUID();
-    const payload: DeleteProjectJob = { requestId, actorUserId: userId, projectId };
+    const payload: DeleteProjectJob = {
+      requestId,
+      actorUserId: userId,
+      projectId,
+    };
 
     await this.enqueueProjectJob(
       requestId,
@@ -254,7 +285,14 @@ export class ProjectsService {
       userId,
       JOB_PROJECT_MEMBER_UPSERT,
       payload,
-      bullJobId('project', projectId, 'member', memberUserId, 'update', requestId),
+      bullJobId(
+        'project',
+        projectId,
+        'member',
+        memberUserId,
+        'update',
+        requestId,
+      ),
     );
 
     return { requestId, projectId, status: 'queued' };
@@ -286,7 +324,14 @@ export class ProjectsService {
       userId,
       JOB_PROJECT_MEMBER_REMOVE,
       payload,
-      bullJobId('project', projectId, 'member', memberUserId, 'remove', requestId),
+      bullJobId(
+        'project',
+        projectId,
+        'member',
+        memberUserId,
+        'remove',
+        requestId,
+      ),
     );
 
     return { requestId, projectId, status: 'queued' };
@@ -312,6 +357,14 @@ export class ProjectsService {
   ): Promise<ProjectAssetUpsertOperationResponse> {
     await this.assertCanEditProject(userId, projectId);
     this.assertName(dto.name, 'Asset name is required');
+    if (dto.sizeBytes !== undefined) {
+      await this.storageQuota.assertWithinQuota(
+        userId,
+        projectId,
+        dto.sizeBytes,
+        dto.assetId,
+      );
+    }
 
     const assetId = dto.assetId ?? randomUUID();
     const storageRef =
@@ -426,7 +479,10 @@ export class ProjectsService {
     if (project.ownerUserId === userId) return;
 
     const member = await this.appData.getProjectMembership(projectId, userId);
-    if (member?.status === 'active' && ['owner', 'editor'].includes(member.role)) {
+    if (
+      member?.status === 'active' &&
+      ['owner', 'editor'].includes(member.role)
+    ) {
       return;
     }
 
@@ -446,11 +502,38 @@ export class ProjectsService {
     throw new ForbiddenException('Project owner access required');
   }
 
-  /** Only the project owner (project.owner_user_id) may delete the project. */
-  private async assertProjectOwner(userId: string, projectId: string): Promise<void> {
+  private async assertCanAssignOrganization(
+    userId: string,
+    projectId: string,
+    targetOrganizationId: string | null,
+  ): Promise<void> {
     const project = await requireProjectAccess(this.appData, userId, projectId);
     if (project.ownerUserId !== userId) {
-      throw new ForbiddenException('Only the project owner can delete this project');
+      throw new ForbiddenException(
+        'Only the project owner can change organization assignment',
+      );
+    }
+    if (project.organizationId) {
+      await this.organizations.requireExecutive(userId, project.organizationId);
+    }
+    if (
+      targetOrganizationId &&
+      targetOrganizationId !== project.organizationId
+    ) {
+      await this.organizations.requireExecutive(userId, targetOrganizationId);
+    }
+  }
+
+  /** Only the project owner (project.owner_user_id) may delete the project. */
+  private async assertProjectOwner(
+    userId: string,
+    projectId: string,
+  ): Promise<void> {
+    const project = await requireProjectAccess(this.appData, userId, projectId);
+    if (project.ownerUserId !== userId) {
+      throw new ForbiddenException(
+        'Only the project owner can delete this project',
+      );
     }
   }
 
@@ -461,7 +544,9 @@ export class ProjectsService {
     if (workspaceMode === 'solo' || workspaceMode === 'collaborative') {
       return workspaceMode;
     }
-    throw new BadRequestException('workspaceMode must be solo or collaborative');
+    throw new BadRequestException(
+      'workspaceMode must be solo or collaborative',
+    );
   }
 
   private normalizeRole(role: ProjectMemberRole): ProjectMemberRole {

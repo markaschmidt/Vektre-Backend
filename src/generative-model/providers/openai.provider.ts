@@ -328,8 +328,7 @@ Only return the JSON object, no surrounding text.`;
       size: opts.size,
       quality: opts.quality,
       image: imageBuffers.map(
-        (buf, i) =>
-          new Blob([new Uint8Array(buf)], { type: 'image/png' }) as Blob,
+        (buf, i) => new Blob([new Uint8Array(buf)], { type: 'image/png' }),
       ),
     };
 

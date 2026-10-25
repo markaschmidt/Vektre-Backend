@@ -36,21 +36,20 @@ export interface UserProfilePreferencesApi {
   [key: string]: unknown;
 }
 
-export function toUserProfileApiResponse(
-  row: {
-    userId: string;
-    displayName?: string | null;
-    avatarUrl?: string | null;
-    plan?: UserPlan | null;
-    preferences: UserOnboardingPreferences;
-    organizationId?: string | null;
-    storageId?: string | null;
-    onDemand?: UserOnDemand;
-    createdAt: Date;
-    updatedAt: Date;
-  },
-): UserProfileApiResponse {
-  const { onboardingCompleted: _ignored, ...publicPreferences } = row.preferences;
+export function toUserProfileApiResponse(row: {
+  userId: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  plan?: UserPlan | null;
+  preferences: UserOnboardingPreferences;
+  organizationId?: string | null;
+  storageId?: string | null;
+  onDemand?: UserOnDemand;
+  createdAt: Date;
+  updatedAt: Date;
+}): UserProfileApiResponse {
+  const { onboardingCompleted: _ignored, ...publicPreferences } =
+    row.preferences;
 
   return {
     id: row.userId,

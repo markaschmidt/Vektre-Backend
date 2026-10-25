@@ -1,5 +1,8 @@
 import type { ProjectMemberRole } from '../../integrations/app-data.types.js';
-import type { InviteType, InviteStatus } from '../../integrations/app-data.types.js';
+import type {
+  InviteType,
+  InviteStatus,
+} from '../../integrations/app-data.types.js';
 
 export { InviteType, InviteStatus, ProjectMemberRole };
 

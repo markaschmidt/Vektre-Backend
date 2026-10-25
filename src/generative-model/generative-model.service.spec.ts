@@ -18,6 +18,10 @@ const mockOllama = {
   listModels: jest.fn(),
 };
 
+const mockUsageCredits = {
+  assertHasCredits: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('GenerativeModelService', () => {
   let service: GenerativeModelService;
 
@@ -27,6 +31,7 @@ describe('GenerativeModelService', () => {
       mockQueue as never,
       mockAppData as unknown as AppDataService,
       mockOllama as unknown as OllamaProviderAdapter,
+      mockUsageCredits as never,
     );
   });
 
@@ -45,8 +50,13 @@ describe('GenerativeModelService', () => {
       expect(result.requestId).toBeDefined();
       expect(mockQueue.add).toHaveBeenCalledWith(
         'replicate-generate-3d',
-        expect.objectContaining({ userId: 'user-1', imageUrl: 'https://example.com/image.png' }),
-        expect.objectContaining({ jobId: expect.stringContaining('replicate-3d-user-1') }),
+        expect.objectContaining({
+          userId: 'user-1',
+          imageUrl: 'https://example.com/image.png',
+        }),
+        expect.objectContaining({
+          jobId: expect.stringContaining('replicate-3d-user-1'),
+        }),
       );
     });
 
@@ -58,6 +68,25 @@ describe('GenerativeModelService', () => {
       expect(mockQueue.add).toHaveBeenCalledWith(
         'replicate-generate-3d',
         expect.objectContaining({ prompt: 'a red sports car' }),
+        expect.anything(),
+      );
+    });
+
+    it('passes Foundry displayName through to the job payload', async () => {
+      await service.create3dRequest('user-1', {
+        prompt: 'a wooden crate',
+        displayName: 'Wooden_Crate',
+        preferredAssetId: 'prop-1739123456789-Wooden_Crate',
+        projectId: 'proj-1',
+        surface: 'foundry',
+      });
+      expect(mockQueue.add).toHaveBeenCalledWith(
+        'replicate-generate-3d',
+        expect.objectContaining({
+          displayName: 'Wooden_Crate',
+          preferredAssetId: 'prop-1739123456789-Wooden_Crate',
+          surface: 'foundry',
+        }),
         expect.anything(),
       );
     });
@@ -93,7 +122,9 @@ describe('GenerativeModelService', () => {
 
       expect(result?.jobStatus).toBe('succeeded');
       expect(result?.modelUrl).toBe('https://delivery.replicate.com/model.glb');
-      expect(result?.previewUrl).toBe('https://delivery.replicate.com/preview.png');
+      expect(result?.previewUrl).toBe(
+        'https://delivery.replicate.com/preview.png',
+      );
       expect(result?.predictionId).toBe('pred-1');
     });
   });
@@ -154,7 +185,9 @@ describe('GenerativeModelService', () => {
 
   describe('listOllamaModels', () => {
     it('throws when Ollama is disabled', async () => {
-      await expect(service.listOllamaModels()).rejects.toThrow(BadRequestException);
+      await expect(service.listOllamaModels()).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

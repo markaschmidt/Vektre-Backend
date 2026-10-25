@@ -17,7 +17,9 @@ describe('project access loss notification helpers', () => {
   it('maps access-loss reasons to notification types and API error codes', () => {
     expect(notificationTypeForAccessLoss('removed')).toBe('project_removed');
     expect(notificationTypeForAccessLoss('deleted')).toBe('project_deleted');
-    expect(PROJECT_ACCESS_LOSS_NOTIFICATION_TYPES.removed).toBe('project_removed');
+    expect(PROJECT_ACCESS_LOSS_NOTIFICATION_TYPES.removed).toBe(
+      'project_removed',
+    );
     expect(PROJECT_ACCESS_LOSS_ERROR_CODES.deleted).toBe('PROJECT_DELETED');
   });
 

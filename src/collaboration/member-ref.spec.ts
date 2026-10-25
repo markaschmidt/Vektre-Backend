@@ -9,11 +9,15 @@ describe('resolveMemberUserId', () => {
   });
 
   it('extracts userId from composite membershipId', () => {
-    expect(resolveMemberUserId(projectId, `${projectId}:${userId}`)).toBe(userId);
+    expect(resolveMemberUserId(projectId, `${projectId}:${userId}`)).toBe(
+      userId,
+    );
   });
 
   it('extracts userId from membershipId when projectId differs', () => {
     const otherProject = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-    expect(resolveMemberUserId(projectId, `${otherProject}:${userId}`)).toBe(userId);
+    expect(resolveMemberUserId(projectId, `${otherProject}:${userId}`)).toBe(
+      userId,
+    );
   });
 });

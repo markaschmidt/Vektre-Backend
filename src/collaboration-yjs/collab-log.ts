@@ -7,7 +7,11 @@
 
 type LogFields = Record<string, unknown>;
 
-function emit(level: 'info' | 'warn' | 'error', event: string, fields?: LogFields): void {
+function emit(
+  level: 'info' | 'warn' | 'error',
+  event: string,
+  fields?: LogFields,
+): void {
   const line = JSON.stringify({
     level,
     event,

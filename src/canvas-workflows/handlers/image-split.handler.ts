@@ -14,6 +14,7 @@ import {
   JOB_CANVAS_IMAGE_SPLIT,
 } from '../../queues/queue-names.js';
 import { heavyJobOptions } from '../../queues/job-options.js';
+import { tracedJobData } from '../../telemetry/bullmq-trace.js';
 import { bullJobId } from '../../queues/bull-job-id.js';
 import { AppDataService } from '../../integrations/app-data.service.js';
 import type { CanvasImageSplitJob } from '../../generative-model/models/gen-job.model.js';
@@ -31,7 +32,9 @@ export class ImageSplitActionHandler implements CanvasActionHandler {
   async validate(ctx: CanvasActionRunContext): Promise<void> {
     const sourceAssetId = ctx.inputs.assets[0]?.assetId;
     if (!sourceAssetId) {
-      throw new BadRequestException('image_split requires an image asset input');
+      throw new BadRequestException(
+        'image_split requires an image asset input',
+      );
     }
     const asset = await this.appData.getProjectAsset(sourceAssetId);
     if (!asset || asset.projectId !== ctx.projectId) {
@@ -69,7 +72,7 @@ export class ImageSplitActionHandler implements CanvasActionHandler {
   }
 
   async enqueue(ctx: CanvasActionRunContext): Promise<void> {
-    const sourceAssetId = ctx.inputs.assets[0]!.assetId;
+    const sourceAssetId = ctx.inputs.assets[0].assetId;
     const config = normalizeSplitConfig(ctx.config);
     const jobId = bullJobId('canvas-split', ctx.userId, ctx.requestId);
 
@@ -92,7 +95,7 @@ export class ImageSplitActionHandler implements CanvasActionHandler {
       config,
     };
 
-    await this.genQueue.add(JOB_CANVAS_IMAGE_SPLIT, payload, {
+    await this.genQueue.add(JOB_CANVAS_IMAGE_SPLIT, tracedJobData(payload), {
       ...heavyJobOptions,
       jobId,
     });
@@ -110,8 +113,15 @@ export function normalizeSplitConfig(
     const gridRaw = (raw.grid as Record<string, unknown> | undefined) ?? {};
     const rows = Number(gridRaw.rows ?? 1);
     const columns = Number(gridRaw.columns ?? 1);
-    if (!Number.isInteger(rows) || rows < 1 || !Number.isInteger(columns) || columns < 1) {
-      throw new BadRequestException('image_split grid requires positive integer rows/columns');
+    if (
+      !Number.isInteger(rows) ||
+      rows < 1 ||
+      !Number.isInteger(columns) ||
+      columns < 1
+    ) {
+      throw new BadRequestException(
+        'image_split grid requires positive integer rows/columns',
+      );
     }
     return { mode, grid: { rows, columns }, maxOutputs };
   }
@@ -123,7 +133,11 @@ export function normalizeSplitConfig(
     const y = Number(region.y);
     const width = Number(region.width);
     const height = Number(region.height);
-    if (![x, y, width, height].every((n) => Number.isFinite(n)) || width <= 0 || height <= 0) {
+    if (
+      ![x, y, width, height].every((n) => Number.isFinite(n)) ||
+      width <= 0 ||
+      height <= 0
+    ) {
       throw new BadRequestException(
         `image_split region[${index}] must have finite x/y and positive width/height`,
       );

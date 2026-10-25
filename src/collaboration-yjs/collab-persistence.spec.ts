@@ -17,10 +17,14 @@ const mockUpsert = jest.fn();
 const mockInsert = jest.fn();
 
 const mockPruneRange = jest.fn(() =>
-  Promise.resolve({ data: [] as { snapshot_id: string; storage_ref: string }[], error: null }),
+  Promise.resolve({
+    data: [] as { snapshot_id: string; storage_ref: string }[],
+    error: null,
+  }),
 );
 const mockPruneOrder = jest.fn(() => ({ range: mockPruneRange }));
-const mockPruneEq = jest.fn(() => ({ order: mockPruneOrder }));
+const mockPruneIs = jest.fn(() => ({ order: mockPruneOrder }));
+const mockPruneEq = jest.fn(() => ({ is: mockPruneIs }));
 const mockPruneSelect = jest.fn(() => ({ eq: mockPruneEq }));
 const mockDeleteIn = jest.fn(() => Promise.resolve({ error: null }));
 const mockDelete = jest.fn(() => ({ in: mockDeleteIn }));
@@ -94,14 +98,18 @@ describe('collab-persistence', () => {
     mockMaybeSingle.mockResolvedValue({
       data: {
         document_id: 'doc-1',
-        storage_ref: 'supabase://test-collab-bucket/projects/proj-1/docs/canvas/doc-1/latest.yjs',
+        storage_ref:
+          'supabase://test-collab-bucket/projects/proj-1/docs/canvas/doc-1/latest.yjs',
       },
       error: null,
     });
     mockDownload.mockResolvedValue({
       data: {
-        arrayBuffer: async () =>
-          update.buffer.slice(update.byteOffset, update.byteOffset + update.byteLength),
+        arrayBuffer: () =>
+          update.buffer.slice(
+            update.byteOffset,
+            update.byteOffset + update.byteLength,
+          ),
       },
       error: null,
     });
@@ -111,7 +119,9 @@ describe('collab-persistence', () => {
 
     expect(mockSelect).toHaveBeenCalledWith('document_id, storage_ref');
     expect(mockStorageFrom).toHaveBeenCalledWith('test-collab-bucket');
-    expect(mockDownload).toHaveBeenCalledWith('projects/proj-1/docs/canvas/doc-1/latest.yjs');
+    expect(mockDownload).toHaveBeenCalledWith(
+      'projects/proj-1/docs/canvas/doc-1/latest.yjs',
+    );
     expect(target.getMap('canvas').get('node-1')).toEqual({ x: 10, y: 20 });
     expect(mockInsert).not.toHaveBeenCalled();
   });
@@ -132,14 +142,14 @@ describe('collab-persistence', () => {
       data: { document_id: 'doc-1', storage_ref: null },
       error: null,
     });
-    mockDownload.mockImplementation(async (path: string) => {
+    mockDownload.mockImplementation((path: string) => {
       if (path === 'projects/proj-1/docs/foundry/doc-1/latest.yjs') {
         return { data: null, error: { message: 'Object not found' } };
       }
       if (path === 'projects/proj-1/docs/canvas/doc-1/latest.yjs') {
         return {
           data: {
-            arrayBuffer: async () =>
+            arrayBuffer: () =>
               update.buffer.slice(
                 update.byteOffset,
                 update.byteOffset + update.byteLength,
@@ -159,7 +169,10 @@ describe('collab-persistence', () => {
 
   it('registers document metadata on first open even without an existing snapshot', async () => {
     mockMaybeSingle.mockResolvedValue({ data: null, error: null });
-    mockDownload.mockResolvedValue({ data: null, error: { message: 'Object not found' } });
+    mockDownload.mockResolvedValue({
+      data: null,
+      error: { message: 'Object not found' },
+    });
 
     const target = new Y.Doc();
     await loadDocumentSnapshot(parsed, target);
@@ -182,8 +195,12 @@ describe('collab-persistence', () => {
 
     mockMaybeSingle.mockResolvedValue({ data: null, error: null });
 
-    await storeDocumentSnapshot(
-      { ...parsed, documentType: 'gui_screen', documentKey: 'project:proj-1:doc:gui_screen:doc-1' },
+    const stored = await storeDocumentSnapshot(
+      {
+        ...parsed,
+        documentType: 'gui_screen',
+        documentKey: 'project:proj-1:doc:gui_screen:doc-1',
+      },
       doc,
       'user-1',
     );
@@ -194,7 +211,9 @@ describe('collab-persistence', () => {
       { contentType: 'application/octet-stream', upsert: true },
     );
     expect(mockUpload).toHaveBeenCalledWith(
-      expect.stringMatching(/^projects\/proj-1\/docs\/gui_screen\/doc-1\/snapshots\/snap_.+\.yjs$/),
+      expect.stringMatching(
+        /^projects\/proj-1\/docs\/gui_screen\/doc-1\/snapshots\/snap_.+\.yjs$/,
+      ),
       expect.any(Buffer),
       { contentType: 'application/octet-stream', upsert: true },
     );
@@ -208,7 +227,8 @@ describe('collab-persistence', () => {
         created_by_user_id: 'user-1',
         version: 1,
         updated_by_user_id: 'user-1',
-        storage_ref: 'supabase://test-collab-bucket/projects/proj-1/docs/gui_screen/doc-1/latest.yjs',
+        storage_ref:
+          'supabase://test-collab-bucket/projects/proj-1/docs/gui_screen/doc-1/latest.yjs',
       }),
     );
     expect(mockInsert).toHaveBeenCalledWith(
@@ -216,10 +236,12 @@ describe('collab-persistence', () => {
         document_key: 'project:proj-1:doc:gui_screen:doc-1',
         document_id: 'doc-1',
         created_by_user_id: 'user-1',
-        storage_ref: expect.stringMatching(
-          /^supabase:\/\/test-collab-bucket\/projects\/proj-1\/docs\/gui_screen\/doc-1\/snapshots\/snap_.+\.yjs$/,
-        ),
       }),
+    );
+    expect(stored.snapshotId).toMatch(/^snap_/);
+    expect(stored.stateVector).not.toHaveLength(0);
+    expect(stored.storageRef).toMatch(
+      /^supabase:\/\/test-collab-bucket\/projects\/proj-1\/docs\/gui_screen\/doc-1\/snapshots\/snap_.+\.yjs$/,
     );
   });
 
@@ -231,10 +253,18 @@ describe('collab-persistence', () => {
 
     await storeDocumentSnapshot(parsed, doc, 'user-2');
 
-    const upsertPayload = mockUpsert.mock.calls[0][0];
-    expect(upsertPayload).not.toHaveProperty('title');
-    expect(upsertPayload).not.toHaveProperty('created_by_user_id');
-    expect(upsertPayload).toMatchObject({ version: 5, updated_by_user_id: 'user-2' });
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: 5,
+        updated_by_user_id: 'user-2',
+      }),
+    );
+    expect(mockUpsert).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Untitled' }),
+    );
+    expect(mockUpsert).not.toHaveBeenCalledWith(
+      expect.objectContaining({ created_by_user_id: 'user-2' }),
+    );
   });
 
   it('prunes stale snapshot rows and their per-version storage objects after saving', async () => {
@@ -242,17 +272,34 @@ describe('collab-persistence', () => {
     mockMaybeSingle.mockResolvedValue({ data: { version: 1 }, error: null });
     mockPruneRange.mockResolvedValue({
       data: [
-        { snapshot_id: 'snap_old_1', storage_ref: 'supabase://test-collab-bucket/projects/proj-1/docs/canvas/doc-1/snapshots/snap_old_1.yjs' },
-        { snapshot_id: 'snap_old_2', storage_ref: 'supabase://test-collab-bucket/projects/proj-1/docs/canvas/doc-1/snapshots/snap_old_2.yjs' },
+        {
+          snapshot_id: 'snap_old_1',
+          storage_ref:
+            'supabase://test-collab-bucket/projects/proj-1/docs/canvas/doc-1/snapshots/snap_old_1.yjs',
+        },
+        {
+          snapshot_id: 'snap_old_2',
+          storage_ref:
+            'supabase://test-collab-bucket/projects/proj-1/docs/canvas/doc-1/snapshots/snap_old_2.yjs',
+        },
       ],
       error: null,
     });
 
     await storeDocumentSnapshot(parsed, doc, 'user-1');
 
-    expect(mockPruneSelect).toHaveBeenCalledWith('snapshot_id, storage_ref');
-    expect(mockPruneEq).toHaveBeenCalledWith('document_key', parsed.documentKey);
-    expect(mockDeleteIn).toHaveBeenCalledWith('snapshot_id', ['snap_old_1', 'snap_old_2']);
+    expect(mockPruneSelect).toHaveBeenCalledWith(
+      'snapshot_id, storage_ref, preview_storage_ref',
+    );
+    expect(mockPruneEq).toHaveBeenCalledWith(
+      'document_key',
+      parsed.documentKey,
+    );
+    expect(mockPruneIs).toHaveBeenCalledWith('name', null);
+    expect(mockDeleteIn).toHaveBeenCalledWith('snapshot_id', [
+      'snap_old_1',
+      'snap_old_2',
+    ]);
     expect(mockRemove).toHaveBeenCalledWith([
       'projects/proj-1/docs/canvas/doc-1/snapshots/snap_old_1.yjs',
       'projects/proj-1/docs/canvas/doc-1/snapshots/snap_old_2.yjs',

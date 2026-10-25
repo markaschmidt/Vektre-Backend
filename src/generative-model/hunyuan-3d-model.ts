@@ -88,7 +88,9 @@ export type HunyuanMultiviewAssetIds = Partial<
   Record<HunyuanMultiviewPort, string>
 >;
 
-export type HunyuanMultiviewUrls = Partial<Record<HunyuanMultiviewPort, string>>;
+export type HunyuanMultiviewUrls = Partial<
+  Record<HunyuanMultiviewPort, string>
+>;
 
 export function countMultiviewAssets(
   ids: HunyuanMultiviewAssetIds | HunyuanMultiviewUrls,

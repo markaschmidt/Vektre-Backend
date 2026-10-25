@@ -28,7 +28,9 @@ export const rigAnythingConfig = registerAs(
       apiKey,
       enabled,
       requestTimeoutMs: Number(process.env['RIGANYTHING_TIMEOUT_MS'] ?? 30_000),
-      pollIntervalMs: Number(process.env['RIGANYTHING_POLL_INTERVAL_MS'] ?? 3_000),
+      pollIntervalMs: Number(
+        process.env['RIGANYTHING_POLL_INTERVAL_MS'] ?? 3_000,
+      ),
       jobTimeoutMs: Number(
         process.env['RIGANYTHING_JOB_TIMEOUT_MS'] ?? 45 * 60_000,
       ),

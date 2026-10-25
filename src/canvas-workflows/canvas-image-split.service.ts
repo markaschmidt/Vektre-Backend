@@ -45,7 +45,10 @@ export class CanvasImageSplitService {
         throw new Error(`Source asset ${data.sourceAssetId} unavailable`);
       }
       const bucket = source.bucket ?? this.supabase.getStorageBucket();
-      const bytes = await this.supabase.downloadObject(source.objectPath, bucket);
+      const bytes = await this.supabase.downloadObject(
+        source.objectPath,
+        bucket,
+      );
 
       const meta = readPngMeta(bytes);
       const { width, height } = meta;

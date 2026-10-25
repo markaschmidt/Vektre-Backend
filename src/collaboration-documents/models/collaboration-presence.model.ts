@@ -44,22 +44,26 @@ export interface ProjectSessionAwarenessContract {
   };
 }
 
-export const PROJECT_SESSION_AWARENESS_CONTRACT: ProjectSessionAwarenessContract = {
-  description:
-    'Ephemeral global presence broadcast by every connected client in project:{projectId}:session. ' +
-    'Keep this small — no document content, no blobs.',
-  fields: {
-    userId: 'string — Supabase user id (also available server-side via onAuthenticate)',
-    displayName: 'string',
-    avatarUrl: 'string | undefined',
-    role: 'ProjectMemberRole — owner | editor | commenter | viewer',
-    color: 'string — stable per-member cursor/highlight color',
-    activeSurface:
-      'ProjectActiveSurface — dashboard | storyboard | foundry | canvas | gui_screen | repository | settings',
-    activeDocumentId: 'string | undefined — set when activeSurface has an open document',
-    activity: '{ activityId, requestId, activityType, status } | undefined — cross-surface activity in progress',
-  },
-};
+export const PROJECT_SESSION_AWARENESS_CONTRACT: ProjectSessionAwarenessContract =
+  {
+    description:
+      'Ephemeral global presence broadcast by every connected client in project:{projectId}:session. ' +
+      'Keep this small — no document content, no blobs.',
+    fields: {
+      userId:
+        'string — Supabase user id (also available server-side via onAuthenticate)',
+      displayName: 'string',
+      avatarUrl: 'string | undefined',
+      role: 'ProjectMemberRole — owner | editor | commenter | viewer',
+      color: 'string — stable per-member cursor/highlight color',
+      activeSurface:
+        'ProjectActiveSurface — dashboard | storyboard | foundry | canvas | gui_screen | repository | settings',
+      activeDocumentId:
+        'string | undefined — set when activeSurface has an open document',
+      activity:
+        '{ activityId, requestId, activityType, status } | undefined — cross-surface activity in progress',
+    },
+  };
 
 export interface SurfaceAwarenessContract {
   description: string;
@@ -77,22 +81,31 @@ export function buildSurfaceAwarenessContract(
     userId: 'string',
     displayName: 'string',
     color: 'string',
-    cursor: 'surface-specific cursor/selection anchor (see commentAnchorSchema for shape hints)',
-    localActivityId: 'string | undefined — collaboration_activity id currently generating in this room',
+    cursor:
+      'surface-specific cursor/selection anchor (see commentAnchorSchema for shape hints)',
+    localActivityId:
+      'string | undefined — collaboration_activity id currently generating in this room',
   };
 
   switch (documentType) {
     case 'storyboard':
       return {
-        description: 'Storyboard editor awareness: text cursor, selection, and active block.',
-        fields: { ...common, selectionRange: '{ blockId, from, to } | undefined', activeBlockId: 'string | undefined' },
+        description:
+          'Storyboard editor awareness: text cursor, selection, and active block.',
+        fields: {
+          ...common,
+          selectionRange: '{ blockId, from, to } | undefined',
+          activeBlockId: 'string | undefined',
+        },
       };
     case 'foundry':
       return {
-        description: 'Foundry viewer awareness: shared selected model/item in the 3D scene.',
+        description:
+          'Foundry viewer awareness: shared selected model/item in the 3D scene.',
         fields: {
           ...common,
-          selectedItemId: 'string | undefined — collaboratively shared foundry item selection',
+          selectedItemId:
+            'string | undefined — collaboratively shared foundry item selection',
         },
       };
     case 'canvas':
@@ -101,16 +114,19 @@ export function buildSurfaceAwarenessContract(
           'Canvas workflow awareness: active workflow, selected nodes, viewport, and in-progress action run.',
         fields: {
           ...common,
-          activeWorkflowId: 'string | undefined — which workflow graph is focused',
+          activeWorkflowId:
+            'string | undefined — which workflow graph is focused',
           selectedNodeIds: 'string[]',
           activeNodeId: 'string | undefined',
-          localRunId: 'string | undefined — client run id for the action in progress',
+          localRunId:
+            'string | undefined — client run id for the action in progress',
           viewport: '{ x, y, zoom } | undefined',
         },
       };
     case 'gui_screen':
       return {
-        description: 'GUI maker awareness: selected components and inspector focus.',
+        description:
+          'GUI maker awareness: selected components and inspector focus.',
         fields: {
           ...common,
           selectedComponentIds: 'string[]',

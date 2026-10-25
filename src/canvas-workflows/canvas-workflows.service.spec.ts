@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CanvasWorkflowsService } from './canvas-workflows.service.js';
 import type { AppDataService } from '../integrations/app-data.service.js';
 import type { CanvasActionHandler } from './canvas-action.interface.js';
@@ -70,20 +74,27 @@ describe('CanvasWorkflowsService', () => {
       makeActivity(row),
     );
     appData.updateCollaborationActivity.mockImplementation(async (id, patch) =>
-      makeActivity({ activityId: id, ...patch, status: patch.status ?? 'running' }),
+      makeActivity({
+        activityId: id,
+        ...patch,
+        status: patch.status ?? 'running',
+      }),
     );
     appData.getCollaborationActivity.mockResolvedValue(
       makeActivity({ status: 'running' }),
     );
 
-    service = new CanvasWorkflowsService(
-      appData as unknown as AppDataService,
-      [handler],
-    );
+    service = new CanvasWorkflowsService(appData as unknown as AppDataService, [
+      handler,
+    ]);
   });
 
   it('returns capabilities for a canvas document', async () => {
-    const caps = await service.getCapabilities('proj-1', 'doc-canvas', 'user-1');
+    const caps = await service.getCapabilities(
+      'proj-1',
+      'doc-canvas',
+      'user-1',
+    );
     expect(caps.schemaVersion).toBe('canvas.v2');
     expect(caps.actions.map((a) => a.actionKind)).toEqual([
       'concept_art',
@@ -164,7 +175,9 @@ describe('CanvasWorkflowsService', () => {
   });
 
   it('marks activity failed when enqueue throws', async () => {
-    (handler.enqueue as jest.Mock).mockRejectedValueOnce(new Error('provider down'));
+    (handler.enqueue as jest.Mock).mockRejectedValueOnce(
+      new Error('provider down'),
+    );
     await expect(
       service.runAction('proj-1', 'doc-canvas', 'user-1', {
         workflowId: 'wf-1',

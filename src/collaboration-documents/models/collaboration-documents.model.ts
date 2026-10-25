@@ -239,10 +239,14 @@ export interface SnapshotResponse {
   byteLength?: number;
   createdByUserId?: string;
   createdAt: string;
+  name?: string | null;
+  previewUrl?: string;
+  previewContentType?: string | null;
 }
 
 export function toSnapshotResponse(
   row: CollaborationSnapshotRow,
+  extras: { previewUrl?: string } = {},
 ): SnapshotResponse {
   return {
     snapshotId: row.snapshotId,
@@ -251,7 +255,19 @@ export function toSnapshotResponse(
     byteLength: row.byteLength,
     createdByUserId: row.createdByUserId,
     createdAt: row.createdAt.toISOString(),
+    name: row.name ?? null,
+    previewUrl: extras.previewUrl,
+    previewContentType: row.previewContentType ?? null,
   };
+}
+
+export interface SnapshotPreviewUploadResponse {
+  snapshotId: string;
+  uploadUrl: string;
+  token: string;
+  path: string;
+  contentType: string;
+  expiresInSeconds: number;
 }
 
 export interface RestoreSnapshotResponse {

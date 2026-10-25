@@ -170,7 +170,9 @@ export class NotificationsService {
     actorUserId: string;
     members: Array<{ userId: string; role: ProjectMemberRole }>;
   }): Promise<void> {
-    const recipients = input.members.filter((m) => m.userId !== input.actorUserId);
+    const recipients = input.members.filter(
+      (m) => m.userId !== input.actorUserId,
+    );
     if (recipients.length === 0) return;
 
     await Promise.all(
@@ -305,7 +307,10 @@ export class NotificationsService {
 
     return rows.map((row) => {
       const actor = row.actorUserId
-        ? toNotificationActorSummary(row.actorUserId, profiles.get(row.actorUserId))
+        ? toNotificationActorSummary(
+            row.actorUserId,
+            profiles.get(row.actorUserId),
+          )
         : undefined;
       return toNotificationResponse(row, actor);
     });
@@ -344,8 +349,10 @@ function roleChangeType(
   NotificationType,
   'project_role_promoted' | 'project_role_demoted' | 'project_role_changed'
 > {
-  if (ROLE_RANK[newRole] > ROLE_RANK[previousRole]) return 'project_role_promoted';
-  if (ROLE_RANK[newRole] < ROLE_RANK[previousRole]) return 'project_role_demoted';
+  if (ROLE_RANK[newRole] > ROLE_RANK[previousRole])
+    return 'project_role_promoted';
+  if (ROLE_RANK[newRole] < ROLE_RANK[previousRole])
+    return 'project_role_demoted';
   return 'project_role_changed';
 }
 

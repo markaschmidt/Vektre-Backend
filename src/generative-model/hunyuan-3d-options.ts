@@ -106,10 +106,13 @@ export function resolveHunyuan3dOptions(
 
   const explicitFace = readNumber(config.faceCount ?? config.face_count);
   const face_count = clampFaceCount(
-    explicitFace ?? (useCustom && customFace != null ? customFace : base.face_count),
+    explicitFace ??
+      (useCustom && customFace != null ? customFace : base.face_count),
   );
 
-  const generateTypeRaw = readString(config.generateType ?? config.generate_type);
+  const generateTypeRaw = readString(
+    config.generateType ?? config.generate_type,
+  );
   const parsedGenerateType = generateTypeRaw
     ? normalizeHunyuanGenerateType(generateTypeRaw)
     : undefined;

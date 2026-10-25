@@ -1,5 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { classifyHttpStatus, ProviderError } from './provider-error.model.js';
+import { currentTraceCarrier } from '../telemetry/trace-context.js';
+import { injectTraceHeaders } from '../telemetry/w3c-traceparent.js';
 
 const logger = new Logger('OutboundHttp');
 
@@ -68,7 +70,10 @@ export async function outboundJson<T = unknown>(
   try {
     response = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json', ...headers },
+      headers: withTraceHeaders({
+        'Content-Type': 'application/json',
+        ...headers,
+      }),
       body: body != null ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
@@ -120,8 +125,10 @@ export async function outboundJson<T = unknown>(
   return { status: response.status, headers: responseHeaders, data };
 }
 
-export interface OutboundMultipartOptions
-  extends Omit<OutboundRequestOptions, 'body'> {
+export interface OutboundMultipartOptions extends Omit<
+  OutboundRequestOptions,
+  'body'
+> {
   /** multipart/form-data fields (strings or Blobs/Files/Buffers). */
   form: Record<string, string | Blob | Buffer | Array<string | Blob | Buffer>>;
 }
@@ -151,11 +158,7 @@ export async function outboundMultipart<T = unknown>(
       if (typeof entry === 'string') {
         formData.append(key, entry);
       } else if (Buffer.isBuffer(entry)) {
-        formData.append(
-          key,
-          new Blob([new Uint8Array(entry)]),
-          `${key}.bin`,
-        );
+        formData.append(key, new Blob([new Uint8Array(entry)]), `${key}.bin`);
       } else {
         formData.append(key, entry);
       }
@@ -180,14 +183,17 @@ export async function outboundMultipart<T = unknown>(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   // Strip Content-Type so undici sets multipart boundary automatically.
-  const { 'Content-Type': _ignored, 'content-type': _ignored2, ...rest } =
-    headers;
+  const {
+    'Content-Type': _ignored,
+    'content-type': _ignored2,
+    ...rest
+  } = headers;
 
   let response: Response;
   try {
     response = await fetch(url, {
       method,
-      headers: rest,
+      headers: withTraceHeaders(rest),
       body: formData,
       signal: controller.signal,
     });
@@ -245,7 +251,14 @@ export async function outboundMultipart<T = unknown>(
 export async function outboundBinary(
   opts: Omit<OutboundRequestOptions, 'body'>,
 ): Promise<Buffer> {
-  const { provider, url, headers = {}, timeoutMs = 60_000, requestId, userId } = opts;
+  const {
+    provider,
+    url,
+    headers = {},
+    timeoutMs = 60_000,
+    requestId,
+    userId,
+  } = opts;
 
   logger.debug(
     JSON.stringify({
@@ -263,7 +276,7 @@ export async function outboundBinary(
   let response: Response;
   try {
     response = await fetch(url, {
-      headers,
+      headers: withTraceHeaders(headers),
       signal: controller.signal,
     });
   } catch (err: unknown) {
@@ -286,6 +299,12 @@ export async function outboundBinary(
 
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
+}
+
+function withTraceHeaders(
+  headers: Record<string, string>,
+): Record<string, string> {
+  return injectTraceHeaders(headers, currentTraceCarrier());
 }
 
 /**

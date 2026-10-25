@@ -22,6 +22,7 @@ import {
 import { CanvasAssetOutputService } from '../canvas-asset-output.service.js';
 import { AppDataService } from '../../integrations/app-data.service.js';
 import { CANVAS_RUN_PROMPT_MAX_LENGTH } from '../../collaboration-documents/models/canvas-graph.model.js';
+import { mintPropAssetId } from '../../projects/asset-conventions.js';
 
 @Injectable()
 export class Model3dActionHandler implements CanvasActionHandler {
@@ -52,7 +53,9 @@ export class Model3dActionHandler implements CanvasActionHandler {
 
     const configPrompt =
       typeof ctx.config.prompt === 'string' ? ctx.config.prompt.trim() : '';
-    const textParts = ctx.inputs.texts.map((t) => t.text.trim()).filter(Boolean);
+    const textParts = ctx.inputs.texts
+      .map((t) => t.text.trim())
+      .filter(Boolean);
     const prompt = configPrompt || textParts.join('\n\n');
     const imageAssetId = this.resolveSingleImageAssetId(ctx);
 
@@ -83,7 +86,9 @@ export class Model3dActionHandler implements CanvasActionHandler {
     }
 
     const qualityTier =
-      typeof ctx.config.qualityTier === 'string' ? ctx.config.qualityTier : undefined;
+      typeof ctx.config.qualityTier === 'string'
+        ? ctx.config.qualityTier
+        : undefined;
     if (qualityTier && !isValidHunyuanQualityTier(qualityTier)) {
       throw new BadRequestException(
         `Invalid model_3d qualityTier: ${qualityTier}`,
@@ -119,7 +124,8 @@ export class Model3dActionHandler implements CanvasActionHandler {
       nodeId: ctx.nodeId,
       runId: ctx.runId,
       activityId: ctx.activityId,
-      preferredAssetId: `model-${ctx.runId.slice(0, 12)}`,
+      // Same Foundry repository convention as desktop-created props (prop-{id}).
+      preferredAssetId: mintPropAssetId(`prop-${ctx.runId.slice(0, 12)}`),
       surface: 'canvas' as const,
       actionKind: 'model_3d',
       hunyuanModel,
@@ -140,7 +146,9 @@ export class Model3dActionHandler implements CanvasActionHandler {
 
     const configPrompt =
       typeof ctx.config.prompt === 'string' ? ctx.config.prompt.trim() : '';
-    const textParts = ctx.inputs.texts.map((t) => t.text.trim()).filter(Boolean);
+    const textParts = ctx.inputs.texts
+      .map((t) => t.text.trim())
+      .filter(Boolean);
     const prompt = configPrompt || textParts.join('\n\n');
     const imageAssetId = this.resolveSingleImageAssetId(ctx);
     const preferImage = ctx.config.preferImageInput !== false;
@@ -215,7 +223,10 @@ export class Model3dActionHandler implements CanvasActionHandler {
     for (const port of HUNYUAN_MULTIVIEW_PORTS) {
       const assetId = ids[port];
       if (!assetId) continue;
-      const signed = await this.outputs.createSignedAssetUrl(projectId, assetId);
+      const signed = await this.outputs.createSignedAssetUrl(
+        projectId,
+        assetId,
+      );
       urls[port] = signed.signedUrl;
     }
     return urls;

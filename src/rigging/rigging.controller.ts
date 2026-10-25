@@ -34,10 +34,7 @@ export class RiggingController {
    * Poll durable Nest status (does not depend on RunPod for authz).
    */
   @Get('jobs/:jobId')
-  get(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('jobId') jobId: string,
-  ) {
+  get(@CurrentUser() user: AuthenticatedUser, @Param('jobId') jobId: string) {
     return this.rigging.getJob(user.id, jobId);
   }
 }

@@ -7,12 +7,14 @@ import { CollaborationDocumentsController } from './collaboration-documents.cont
 import { CollaborationDocumentsService } from './collaboration-documents.service.js';
 import { CollaborationCommentNotificationsService } from './collaboration-comment-notifications.service.js';
 import { CollaborationCommentNotificationsProcessor } from './collaboration-comment-notifications.processor.js';
+import { UiContextIndexQueueModule } from '../ui-agent/indexer/ui-context-index-queue.module.js';
 
 @Module({
   imports: [
     BullModule.registerQueue({ name: COLLAB_OPS_QUEUE }),
     IntegrationsModule,
     NotificationsModule,
+    UiContextIndexQueueModule,
   ],
   controllers: [CollaborationDocumentsController],
   providers: [

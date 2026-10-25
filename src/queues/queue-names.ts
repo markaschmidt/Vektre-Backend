@@ -5,6 +5,12 @@ export const PROJECT_OPS_QUEUE = 'project-ops';
 export const COLLAB_OPS_QUEUE = 'collab-ops';
 export const RIGGING_QUEUE = 'rigging';
 export const MESH2MOTION_QUEUE = 'mesh2motion';
+export const BILLING_OPS_QUEUE = 'billing-ops';
+export const ORG_INTEGRATION_OPS_QUEUE = 'org-integration-ops';
+export const UI_CONTEXT_INDEX_QUEUE = 'ui-context-index';
+export const UI_AGENT_QUEUE = 'ui-agent';
+
+export const JOB_STRIPE_WEBHOOK = 'stripe-webhook';
 
 // ── Generative-model job names ────────────────────────────────────────────────
 export const JOB_REPLICATE_GENERATE_3D = 'replicate-generate-3d';
@@ -21,6 +27,7 @@ export const JOB_GOOGLE_DRIVE_IMPORT = 'google-drive-import';
 export const JOB_NOTION_SEARCH = 'notion-search';
 export const JOB_NOTION_IMPORT_PAGE = 'notion-import-page';
 export const JOB_NOTION_EXPORT_PAGE = 'notion-export-page';
+export const JOB_ORG_INTEGRATION_VALIDATE = 'org-integration-validate';
 
 // ── Project job names ─────────────────────────────────────────────────────────
 export const JOB_PROJECT_CREATE = 'project-create';
@@ -33,6 +40,10 @@ export const JOB_PROJECT_ASSET_UPSERT = 'project-asset-upsert';
 export const JOB_PROJECT_ASSET_REMOVE = 'project-asset-remove';
 
 export const JOB_COLLAB_COMMENT_NOTIFY = 'collab-comment-notify';
+export const JOB_UI_CONTEXT_INDEX_SNAPSHOT = 'ui-context-index-snapshot';
+export const JOB_UI_CONTEXT_INDEX_SOURCE = 'ui-context-index-source';
+export const JOB_UI_AGENT_TRANSITION = 'ui-agent-transition';
+export const JOB_UI_AGENT_ASSET_RESUME = 'ui-agent-asset-resume';
 
 // ── Canvas workflow job names ─────────────────────────────────────────────────
 export const JOB_CANVAS_IMAGE_SPLIT = 'canvas-image-split';

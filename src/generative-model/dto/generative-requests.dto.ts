@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -70,8 +71,32 @@ export class Create3dRequestDto {
   @MaxLength(128)
   localProjectId?: string;
 
+  /**
+   * Foundry "Asset name" — stored as `metadata.displayName` and used as the
+   * imported prop's display title. When omitted, the worker falls back to the
+   * generation prompt.
+   */
   @IsOptional()
-  @IsIn(GENERATION_SURFACES as unknown as string[])
+  @IsString()
+  @MaxLength(64)
+  @Matches(/^[a-zA-Z0-9_-]+$/, {
+    message:
+      'displayName may only contain letters, numbers, underscores, and hyphens',
+  })
+  displayName?: string;
+
+  /**
+   * Optional Foundry/Canvas repository id to preserve on import
+   * (e.g. `prop-1739123456789-Wooden_Crate`). Foundry mints this from
+   * `displayName`; when omitted, the worker mints `prop-{timestamp}`.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  preferredAssetId?: string;
+
+  @IsOptional()
+  @IsIn(GENERATION_SURFACES)
   surface?: (typeof GENERATION_SURFACES)[number];
 
   /** `3.1` (default) single image or prompt; `2mv` multiview orthographic set. */
@@ -152,7 +177,7 @@ export class CreateDocumentSuggestionDto {
   projectId?: string;
 
   @IsOptional()
-  @IsIn(GENERATION_SURFACES as unknown as string[])
+  @IsIn(GENERATION_SURFACES)
   surface?: (typeof GENERATION_SURFACES)[number];
 }
 
@@ -167,7 +192,7 @@ export class CreateConceptArtDto {
   style?: string;
 
   @IsOptional()
-  @IsIn(IMAGE_PROVIDER_IDS as unknown as string[])
+  @IsIn(IMAGE_PROVIDER_IDS)
   provider?: (typeof IMAGE_PROVIDER_IDS)[number];
 
   @IsOptional()
@@ -199,6 +224,6 @@ export class CreateConceptArtDto {
   projectId?: string;
 
   @IsOptional()
-  @IsIn(GENERATION_SURFACES as unknown as string[])
+  @IsIn(GENERATION_SURFACES)
   surface?: (typeof GENERATION_SURFACES)[number];
 }

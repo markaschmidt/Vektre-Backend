@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
+  IsIn,
   IsObject,
   IsOptional,
   IsString,
@@ -10,15 +11,12 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import type { UserPlan, UserType, UserUseCase } from '../../integrations/app-data.types.js';
-
-const USER_PLANS = [
-  'indie_free',
-  'indie_pro',
-  'corp_starter',
-  'corp_team',
-  'corp_enterprise',
-] as const;
+import {
+  USER_PLANS,
+  type UserPlan,
+  type UserType,
+  type UserUseCase,
+} from '../../integrations/app-data.types.js';
 
 export class ProfilePreferencesDto {
   @IsOptional()
@@ -28,19 +26,25 @@ export class ProfilePreferencesDto {
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  @Matches(/^[A-Za-z\s]+$/, { message: 'firstName must contain only letters and spaces' })
+  @Matches(/^[A-Za-z\s]+$/, {
+    message: 'firstName must contain only letters and spaces',
+  })
   firstName?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  @Matches(/^[A-Za-z\s]+$/, { message: 'lastName must contain only letters and spaces' })
+  @Matches(/^[A-Za-z\s]+$/, {
+    message: 'lastName must contain only letters and spaces',
+  })
   lastName?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  @Matches(/^[A-Za-z\s]+$/, { message: 'role must contain only letters and spaces' })
+  @Matches(/^[A-Za-z\s]+$/, {
+    message: 'role must contain only letters and spaces',
+  })
   role?: string;
 
   /** Legacy — not collected during onboarding. */
@@ -60,11 +64,22 @@ export class ProfilePreferencesDto {
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  @Matches(/^[A-Za-z\s]*$/, { message: 'company must contain only letters and spaces' })
+  @Matches(/^[A-Za-z\s]*$/, {
+    message: 'company must contain only letters and spaces',
+  })
   company?: string;
 
+  /** Desktop onboarding alias for `company`. Stored as `company`. */
   @IsOptional()
-  @IsEnum(USER_PLANS)
+  @IsString()
+  @MaxLength(200)
+  @Matches(/^[A-Za-z\s]*$/, {
+    message: 'organizationName must contain only letters and spaces',
+  })
+  organizationName?: string;
+
+  @IsOptional()
+  @IsIn(USER_PLANS)
   selectedPlan?: UserPlan;
 }
 
@@ -79,7 +94,7 @@ export class UpdateProfileDto {
   avatarUrl?: string;
 
   @IsOptional()
-  @IsEnum(USER_PLANS)
+  @IsIn(USER_PLANS)
   plan?: UserPlan;
 
   @IsOptional()

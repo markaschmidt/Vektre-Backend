@@ -49,7 +49,9 @@ export class CollaborationService {
 
     const expiresAt = new Date(dto.expiresAt);
     if (isNaN(expiresAt.getTime()) || expiresAt <= new Date()) {
-      throw new UnprocessableEntityException('expiresAt must be a future ISO-8601 timestamp');
+      throw new UnprocessableEntityException(
+        'expiresAt must be a future ISO-8601 timestamp',
+      );
     }
 
     const rawToken = randomBytes(32).toString('hex');
@@ -90,7 +92,11 @@ export class CollaborationService {
     dto: AcceptShareLinkDto,
   ): Promise<AcceptShareLinkResponse> {
     const tokenHash = createHash('sha256').update(token).digest('hex');
-    const result = await this.appData.consumeShareLink(tokenHash, consumingUserId, dto);
+    const result = await this.appData.consumeShareLink(
+      tokenHash,
+      consumingUserId,
+      dto,
+    );
 
     if (!result) {
       throw new UnprocessableEntityException(
@@ -161,14 +167,21 @@ export class CollaborationService {
     newRole: ProjectMemberRole,
     requestingUserId: string,
   ): Promise<MemberResponse> {
-    const requestor = await this.assertMembership(projectId, requestingUserId, 'owner');
+    const requestor = await this.assertMembership(
+      projectId,
+      requestingUserId,
+      'owner',
+    );
 
     const targetUserId = resolveMemberUserId(projectId, memberRef);
     if (targetUserId === requestingUserId) {
       throw new ForbiddenException('Cannot change your own role');
     }
 
-    const target = await this.appData.getProjectMembershipByRef(projectId, memberRef);
+    const target = await this.appData.getProjectMembershipByRef(
+      projectId,
+      memberRef,
+    );
     if (!target || target.status === 'removed') {
       throw new NotFoundException('Member not found');
     }
@@ -181,10 +194,17 @@ export class CollaborationService {
       throw new ForbiddenException('Only owners can grant owner role');
     }
 
-    const updated = await this.appData.changeMemberRole(projectId, targetUserId, newRole);
+    const updated = await this.appData.changeMemberRole(
+      projectId,
+      targetUserId,
+      newRole,
+    );
     if (!updated) throw new NotFoundException('Member not found');
 
-    const project = await this.appData.getProjectForUser(requestingUserId, projectId);
+    const project = await this.appData.getProjectForUser(
+      requestingUserId,
+      projectId,
+    );
     if (project) {
       await this.notifications.notifyProjectRoleChange({
         projectId,
@@ -204,14 +224,21 @@ export class CollaborationService {
     memberRef: string,
     requestingUserId: string,
   ): Promise<void> {
-    const requestor = await this.assertMembership(projectId, requestingUserId, 'editor');
+    const requestor = await this.assertMembership(
+      projectId,
+      requestingUserId,
+      'editor',
+    );
 
     const targetUserId = resolveMemberUserId(projectId, memberRef);
     if (targetUserId === requestingUserId) {
       throw new ForbiddenException('Use the leave endpoint to remove yourself');
     }
 
-    const target = await this.appData.getProjectMembershipByRef(projectId, memberRef);
+    const target = await this.appData.getProjectMembershipByRef(
+      projectId,
+      memberRef,
+    );
     if (!target || target.status === 'removed') {
       throw new NotFoundException('Member not found');
     }
@@ -221,7 +248,10 @@ export class CollaborationService {
     }
 
     await this.appData.removeProjectMember(projectId, targetUserId);
-    const project = await this.appData.getProjectForUser(requestingUserId, projectId);
+    const project = await this.appData.getProjectForUser(
+      requestingUserId,
+      projectId,
+    );
     if (project) {
       await this.notifications.notifyProjectRemoval({
         projectId,
@@ -266,7 +296,9 @@ export class CollaborationService {
 
   // ─── Internal helpers ─────────────────────────────────────────────────────
 
-  private async enrichMembers(members: ProjectMemberRow[]): Promise<MemberResponse[]> {
+  private async enrichMembers(
+    members: ProjectMemberRow[],
+  ): Promise<MemberResponse[]> {
     const userIds = members.map((member) => member.userId);
     const [profiles, emails] = await Promise.all([
       this.appData.getUserProfilesByIds(userIds),
@@ -282,7 +314,9 @@ export class CollaborationService {
     );
   }
 
-  private async enrichMember(member: ProjectMemberRow): Promise<MemberResponse> {
+  private async enrichMember(
+    member: ProjectMemberRow,
+  ): Promise<MemberResponse> {
     const [profiles, emails] = await Promise.all([
       this.appData.getUserProfilesByIds([member.userId]),
       this.supabase.getUserEmailsByIds([member.userId]),
@@ -299,7 +333,10 @@ export class CollaborationService {
     userId: string,
     minimumRole: ProjectMemberRole,
   ): Promise<ProjectMemberRow> {
-    const access = await this.appData.resolveProjectAccessForUser(userId, projectId);
+    const access = await this.appData.resolveProjectAccessForUser(
+      userId,
+      projectId,
+    );
     if (!access.ok) throwProjectAccessDenied(access.reason);
 
     const project = access.project;

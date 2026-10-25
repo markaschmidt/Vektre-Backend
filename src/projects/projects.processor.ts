@@ -16,6 +16,7 @@ import { AppDataService } from '../integrations/app-data.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { AssetsService } from './assets.service.js';
 import { resolvePostUpsertAssetStatus } from './asset-conventions.js';
+import { OrganizationsService } from '../organizations/organizations.service.js';
 import type {
   ArchiveProjectJob,
   CreateProjectJob,
@@ -28,6 +29,7 @@ import type {
   UpsertProjectAssetJob,
   UpsertProjectMemberJob,
 } from './models/project-op-job.model.js';
+import { UiContextIndexQueue } from '../ui-agent/indexer/ui-context-index.queue.js';
 
 @Processor(PROJECT_OPS_QUEUE, { concurrency: 10 })
 export class ProjectsProcessor extends WorkerHost {
@@ -37,11 +39,15 @@ export class ProjectsProcessor extends WorkerHost {
     private readonly appData: AppDataService,
     private readonly assets: AssetsService,
     private readonly notifications: NotificationsService,
+    private readonly organizations: OrganizationsService,
+    private readonly contextIndexQueue: UiContextIndexQueue,
   ) {
     super();
   }
 
-  async process(job: Job<ProjectOpJobData, void, ProjectOpJobName>): Promise<void> {
+  async process(
+    job: Job<ProjectOpJobData, void, ProjectOpJobName>,
+  ): Promise<void> {
     this.logger.log(`Processing project job ${job.id} (${job.name})`);
 
     try {
@@ -52,13 +58,13 @@ export class ProjectsProcessor extends WorkerHost {
           await this.handleCreate(job.data as CreateProjectJob);
           break;
         case JOB_PROJECT_UPDATE:
-          await this.handleUpdate(job.data as UpdateProjectJob);
+          await this.handleUpdate(job.data);
           break;
         case JOB_PROJECT_ARCHIVE:
-          await this.handleArchive(job.data as ArchiveProjectJob);
+          await this.handleArchive(job.data);
           break;
         case JOB_PROJECT_DELETE:
-          await this.handleDelete(job.data as DeleteProjectJob);
+          await this.handleDelete(job.data);
           break;
         case JOB_PROJECT_MEMBER_UPSERT:
           await this.handleMemberUpsert(job.data as UpsertProjectMemberJob);
@@ -89,9 +95,16 @@ export class ProjectsProcessor extends WorkerHost {
   }
 
   private async handleCreate(job: CreateProjectJob): Promise<void> {
+    if (job.organizationId) {
+      await this.organizations.requireExecutive(
+        job.actorUserId,
+        job.organizationId,
+      );
+    }
     await this.appData.createProject({
       projectId: job.projectId,
       ownerUserId: job.ownerUserId,
+      organizationId: job.organizationId,
       name: job.name,
       description: job.description,
       workspaceMode: job.workspaceMode,
@@ -101,7 +114,22 @@ export class ProjectsProcessor extends WorkerHost {
   }
 
   private async handleUpdate(job: UpdateProjectJob): Promise<void> {
+    if (job.organizationId !== undefined) {
+      const project = await this.appData.getProjectById(job.projectId);
+      const organizationIds = new Set(
+        [project?.organizationId, job.organizationId].filter(
+          (value): value is string => Boolean(value),
+        ),
+      );
+      for (const organizationId of organizationIds) {
+        await this.organizations.requireExecutive(
+          job.actorUserId,
+          organizationId,
+        );
+      }
+    }
     await this.appData.updateProject(job.projectId, {
+      organizationId: job.organizationId,
       name: job.name,
       description: job.description,
       workspaceMode: job.workspaceMode,
@@ -219,6 +247,7 @@ export class ProjectsProcessor extends WorkerHost {
         `Metadata-only asset ${job.assetId} marked ready for project ${job.projectId}`,
       );
     }
+    await this.contextIndexQueue.enqueueAsset(job.projectId, job.assetId);
   }
 
   private async handleAssetRemove(job: RemoveProjectAssetJob): Promise<void> {
@@ -227,5 +256,6 @@ export class ProjectsProcessor extends WorkerHost {
       await this.assets.deleteAssetStorage(asset);
     }
     await this.appData.removeProjectAsset(job.projectId, job.assetId);
+    await this.contextIndexQueue.enqueueAsset(job.projectId, job.assetId);
   }
 }

@@ -4,6 +4,8 @@ import { AppDataService } from '../integrations/app-data.service.js';
 import { SupabaseService } from '../integrations/supabase.js';
 import { normalizeAssetMetadata } from '../projects/asset-conventions.js';
 import { modelPreviewAssetId } from '../projects/asset-conventions.js';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service.js';
+import { UiContextIndexQueue } from '../ui-agent/indexer/ui-context-index.queue.js';
 
 const SUPABASE_ASSET_REF_PREFIX = 'supabase://project-assets';
 
@@ -42,17 +44,34 @@ export class CanvasAssetOutputService {
   constructor(
     private readonly appData: AppDataService,
     private readonly supabase: SupabaseService,
+    private readonly storageQuota: StorageQuotaService,
+    private readonly contextIndexQueue: UiContextIndexQueue,
   ) {}
 
   buildPromptHash(parts: string[]): string {
-    return createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 32);
+    return createHash('sha256')
+      .update(parts.join('\n'))
+      .digest('hex')
+      .slice(0, 32);
   }
 
-  childSliceAssetId(parentAssetId: string, runId: string, index: number): string {
+  childSliceAssetId(
+    parentAssetId: string,
+    runId: string,
+    index: number,
+  ): string {
     return `${parentAssetId}-slice-${runId.slice(0, 8)}-${index}`;
   }
 
-  async materializeBytes(input: MaterializeAssetInput): Promise<MaterializedAsset> {
+  async materializeBytes(
+    input: MaterializeAssetInput,
+  ): Promise<MaterializedAsset> {
+    await this.storageQuota.assertWithinQuota(
+      input.userId,
+      input.projectId,
+      input.bytes.byteLength,
+      input.assetId,
+    );
     const bucket = this.supabase.getStorageBucket();
     const objectPath = buildAssetObjectPath(
       input.projectId,
@@ -100,6 +119,7 @@ export class CanvasAssetOutputService {
       bucket,
       objectPath,
     });
+    await this.contextIndexQueue.enqueueAsset(input.projectId, input.assetId);
 
     this.logger.log(
       JSON.stringify({
@@ -201,6 +221,6 @@ function buildAssetObjectPath(
   assetId: string,
   filename: string,
 ): string {
-  const safeName = filename.replace(/[^\w.\-]+/g, '_');
+  const safeName = filename.replace(/[^\w.-]+/g, '_');
   return `projects/${projectId}/assets/${assetId}/${safeName}`;
 }

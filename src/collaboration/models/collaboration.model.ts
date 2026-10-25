@@ -1,4 +1,7 @@
-import type { ProjectMemberRole, ShareLinkRole } from '../../integrations/app-data.types.js';
+import type {
+  ProjectMemberRole,
+  ShareLinkRole,
+} from '../../integrations/app-data.types.js';
 
 export { ProjectMemberRole, ShareLinkRole };
 

@@ -1,8 +1,4 @@
-import {
-  createSolidRgbaPng,
-  cropPng,
-  readPngMeta,
-} from './png-crop.js';
+import { createSolidRgbaPng, cropPng, readPngMeta } from './png-crop.js';
 import {
   estimateOutputCount,
   normalizeSplitConfig,

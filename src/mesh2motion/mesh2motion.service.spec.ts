@@ -212,9 +212,7 @@ describe('Mesh2MotionService', () => {
     );
 
     const status = await service.getJob('user-1', 'job-1');
-    expect(status.animatedAssetUrl).toBe(
-      'https://signed.example/animated.glb',
-    );
+    expect(status.animatedAssetUrl).toBe('https://signed.example/animated.glb');
     expect(status.status).toBe('completed');
     expect(status.skeletonType).toBe('human');
   });

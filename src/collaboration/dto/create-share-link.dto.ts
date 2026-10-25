@@ -1,4 +1,11 @@
-import { IsEnum, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  Max,
+  Min,
+} from 'class-validator';
 import type { ShareLinkRole } from '../../integrations/app-data.types.js';
 
 export class CreateShareLinkDto {

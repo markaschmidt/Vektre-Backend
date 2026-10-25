@@ -72,7 +72,10 @@ export class RiggingService {
       }
     }
 
-    const source = await this.assets.resolveAccessibleAsset(userId, dto.assetId);
+    const source = await this.assets.resolveAccessibleAsset(
+      userId,
+      dto.assetId,
+    );
     if (source.status !== 'ready' && source.status !== 'active') {
       throw new BadRequestException('Source asset is not ready');
     }
@@ -173,12 +176,13 @@ export class RiggingService {
     // Prefer Nest durable status; surface worker detail from result_json when present.
     const workerStatus =
       typeof job.resultJson?.['workerStatus'] === 'string'
-        ? (job.resultJson['workerStatus'] as string)
+        ? job.resultJson['workerStatus']
         : null;
 
     return {
       jobId: job.jobId,
-      status: (workerStatus as RiggingJobStatusResponse['status']) ?? job.status,
+      status:
+        (workerStatus as RiggingJobStatusResponse['status']) ?? job.status,
       error: job.errorMessage ?? null,
       sourceAssetId: job.sourceAssetId,
       outputAssetId: job.outputAssetId,

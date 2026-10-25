@@ -27,11 +27,19 @@ export interface CanvasActionJobContext {
   runId?: string;
   activityId?: string;
   preferredAssetId?: string;
+  /** Foundry asset name — imported prop display title (`metadata.displayName`). */
+  displayName?: string;
   /**
    * Attribution surface for cost analytics.
    * storyboard | foundry | canvas | direct
    */
-  surface?: 'storyboard' | 'foundry' | 'canvas' | 'direct' | 'unknown';
+  surface?:
+    | 'storyboard'
+    | 'foundry'
+    | 'canvas'
+    | 'gui_screen'
+    | 'direct'
+    | 'unknown';
   actionKind?: string;
 }
 
@@ -58,6 +66,10 @@ export interface ReplicatePoll3dJob extends CanvasActionJobContext {
   userId: string;
   predictionId: string;
   hunyuanModel?: HunyuanModelVariant;
+  /** Original text prompt (for prop file naming on import). */
+  prompt?: string;
+  /** Foundry asset name override for `metadata.displayName` on import. */
+  displayName?: string;
   /** ISO timestamp – processor skips if job queued time is too old */
   enqueuedAt: string;
 }

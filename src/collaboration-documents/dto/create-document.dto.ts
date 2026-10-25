@@ -1,4 +1,11 @@
-import { IsIn, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsObject,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { COLLABORATION_DOCUMENT_TYPES } from '../models/collaboration-surface.model.js';
 import type { CollaborationDocumentType } from '../../integrations/app-data.types.js';
 

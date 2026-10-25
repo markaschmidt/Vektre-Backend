@@ -5,6 +5,8 @@ import {
 } from './assets.service.js';
 import type { AppDataService } from '../integrations/app-data.service.js';
 import type { SupabaseService } from '../integrations/supabase.js';
+import type { StorageQuotaService } from '../storage-quota/storage-quota.service.js';
+import type { UiContextIndexQueue } from '../ui-agent/indexer/ui-context-index.queue.js';
 
 describe('AssetsService', () => {
   let service: AssetsService;
@@ -14,7 +16,9 @@ describe('AssetsService', () => {
       project: { projectId: 'proj-1', ownerUserId: 'user-1', name: 'Demo' },
     }),
     upsertProjectAsset: jest.fn().mockResolvedValue({ assetId: 'asset-1' }),
-    updateProjectAssetStatus: jest.fn().mockResolvedValue({ assetId: 'asset-1', status: 'ready' }),
+    updateProjectAssetStatus: jest
+      .fn()
+      .mockResolvedValue({ assetId: 'asset-1', status: 'ready' }),
     getProjectAsset: jest.fn(),
     removeProjectAsset: jest.fn(),
   };
@@ -26,12 +30,21 @@ describe('AssetsService', () => {
     deleteObjectsWithPrefix: jest.fn().mockResolvedValue(undefined),
     listObjectPaths: jest.fn().mockResolvedValue([]),
   };
+  const storageQuota = {
+    assertWithinQuota: jest.fn().mockResolvedValue(undefined),
+  };
+  const contextIndexQueue = {
+    enqueueSource: jest.fn().mockResolvedValue(true),
+    enqueueAsset: jest.fn().mockResolvedValue(true),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     service = new AssetsService(
       appData as unknown as AppDataService,
       supabase as unknown as SupabaseService,
+      storageQuota as unknown as StorageQuotaService,
+      contextIndexQueue as unknown as UiContextIndexQueue,
     );
   });
 
@@ -53,6 +66,12 @@ describe('AssetsService', () => {
     expect(result.sizeBytes).toBe(5);
     expect(result.status).toBe('ready');
     expect(result.assetType).toBe('image');
+    expect(storageQuota.assertWithinQuota).toHaveBeenCalledWith(
+      'user-1',
+      'proj-1',
+      5,
+      expect.any(String),
+    );
     expect(appData.updateProjectAssetStatus).toHaveBeenCalledWith(
       expect.any(String),
       'ready',
@@ -72,7 +91,12 @@ describe('AssetsService', () => {
 
     expect(result.status).toBe('ready');
     expect(result.assetId).toBe('prop-1');
-    expect(result.metadata).toEqual(expect.objectContaining({ projectRelativePath: 'chair.glb' }));
+    expect(result.metadata).toEqual(
+      expect.objectContaining({
+        projectRelativePath: 'props/prop-1/chair.glb',
+        displayName: 'chair',
+      }),
+    );
   });
 
   it('marks final chunk upload as ready', async () => {
@@ -88,11 +112,16 @@ describe('AssetsService', () => {
       'projects/proj-1/assets/asset-1/chunks/0',
     ]);
 
-    const result = await service.uploadAssetChunk('user-1', 'proj-1', 'asset-1', {
-      chunkIndex: 0,
-      dataBase64: Buffer.from('chunk').toString('base64'),
-      isFinalChunk: true,
-    });
+    const result = await service.uploadAssetChunk(
+      'user-1',
+      'proj-1',
+      'asset-1',
+      {
+        chunkIndex: 0,
+        dataBase64: Buffer.from('chunk').toString('base64'),
+        isFinalChunk: true,
+      },
+    );
 
     expect(result.status).toBe('ready');
     expect(result.sizeBytes).toBeGreaterThan(0);
@@ -162,9 +191,16 @@ describe('AssetsService', () => {
       bucket: 'project-assets',
     });
 
-    await service.cleanupEphemeralStagingAssetIfNeeded('user-1', 'proj-1', 'export-1');
+    await service.cleanupEphemeralStagingAssetIfNeeded(
+      'user-1',
+      'proj-1',
+      'export-1',
+    );
     expect(supabase.deleteObject).toHaveBeenCalled();
-    expect(appData.removeProjectAsset).toHaveBeenCalledWith('proj-1', 'export-1');
+    expect(appData.removeProjectAsset).toHaveBeenCalledWith(
+      'proj-1',
+      'export-1',
+    );
   });
 
   it('skips cleanup for non-ephemeral assets', async () => {
@@ -176,7 +212,11 @@ describe('AssetsService', () => {
       bucket: 'project-assets',
     });
 
-    await service.cleanupEphemeralStagingAssetIfNeeded('user-1', 'proj-1', 'asset-1');
+    await service.cleanupEphemeralStagingAssetIfNeeded(
+      'user-1',
+      'proj-1',
+      'asset-1',
+    );
     expect(supabase.deleteObject).not.toHaveBeenCalled();
     expect(appData.removeProjectAsset).not.toHaveBeenCalled();
   });
@@ -191,7 +231,10 @@ describe('AssetsService', () => {
 
     await service.deleteAsset('user-1', 'proj-1', 'asset-1');
     expect(supabase.deleteObject).toHaveBeenCalled();
-    expect(appData.removeProjectAsset).toHaveBeenCalledWith('proj-1', 'asset-1');
+    expect(appData.removeProjectAsset).toHaveBeenCalledWith(
+      'proj-1',
+      'asset-1',
+    );
   });
 });
 
@@ -204,7 +247,10 @@ describe('isEphemeralExportStagingAsset', () => {
 
   it('detects metadata.ephemeral flag', () => {
     expect(
-      isEphemeralExportStagingAsset({ assetType: 'other', metadata: { ephemeral: true } }),
+      isEphemeralExportStagingAsset({
+        assetType: 'other',
+        metadata: { ephemeral: true },
+      }),
     ).toBe(true);
   });
 

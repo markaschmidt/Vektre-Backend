@@ -6,7 +6,9 @@ import {
 describe('richTextToPlainPrompt', () => {
   it('strips HTML and collapses whitespace', () => {
     expect(
-      richTextToPlainPrompt('<p>A <strong>hero</strong> enters</p><br/>the bathhouse'),
+      richTextToPlainPrompt(
+        '<p>A <strong>hero</strong> enters</p><br/>the bathhouse',
+      ),
     ).toBe('A hero enters\nthe bathhouse');
   });
 

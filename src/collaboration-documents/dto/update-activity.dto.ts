@@ -1,6 +1,12 @@
 import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
 
-const ACTIVITY_STATUSES = ['pending', 'running', 'completed', 'failed', 'cancelled'];
+const ACTIVITY_STATUSES = [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+];
 
 export class UpdateActivityDto {
   @IsIn(ACTIVITY_STATUSES)

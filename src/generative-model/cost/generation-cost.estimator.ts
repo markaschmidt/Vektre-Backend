@@ -8,6 +8,7 @@ import type {
 
 export interface GenerationPricingConfig {
   openaiTextInputPer1M: number;
+  openaiTextOutputPer1M: number;
   openaiImageInputPer1M: number;
   openaiImageOutputPer1M: number;
   /** Fallback when token detail split is unavailable. */
@@ -32,13 +33,14 @@ export class GenerationCostEstimator {
     return (
       configured ?? {
         openaiTextInputPer1M: 5,
+        openaiTextOutputPer1M: 15,
         openaiImageInputPer1M: 8,
         openaiImageOutputPer1M: 30,
         openaiInputBlendedPer1M: 5,
         replicateDefaultUsdPerSecond: 0.002,
         replicateModelUsdPerSecond: {
           'tencent/hunyuan-3d-3.1': 0.002,
-        'tencent/hunyuan3d-2mv': 0.001,
+          'tencent/hunyuan3d-2mv': 0.001,
           'black-forest-labs/flux-2-pro': 0.003,
         },
       }
@@ -46,12 +48,29 @@ export class GenerationCostEstimator {
   }
 
   estimateUsd(
-    provider: 'openai' | 'replicate' | 'local',
+    provider: 'openai' | 'openrouter' | 'replicate' | 'local',
     usage: GenerationUsagePayload,
     modelId?: string,
   ): number {
     if (provider === 'local') return 0;
-    if (provider === 'openai') {
+    if (provider === 'openai' || provider === 'openrouter') {
+      if (usage.text?.providerCostUsd != null) {
+        return roundUsd(usage.text.providerCostUsd);
+      }
+      if (usage.text) {
+        const nonCachedInput = Math.max(
+          0,
+          usage.text.inputTokens - (usage.text.cachedInputTokens ?? 0),
+        );
+        const output =
+          usage.text.outputTokens + (usage.text.reasoningTokens ?? 0);
+        const textCost =
+          (nonCachedInput / 1_000_000) * this.pricing.openaiTextInputPer1M +
+          (output / 1_000_000) * this.pricing.openaiTextOutputPer1M +
+          ((usage.text.imageInputTokens ?? 0) / 1_000_000) *
+            this.pricing.openaiImageInputPer1M;
+        return roundUsd(textCost);
+      }
       return this.estimateOpenAi(usage.openai);
     }
     if (provider === 'replicate') {
@@ -83,16 +102,12 @@ export class GenerationCostEstimator {
     }
 
     const outputTokens = usage.outputTokens ?? 0;
-    const outputCost =
-      (outputTokens / 1_000_000) * p.openaiImageOutputPer1M;
+    const outputCost = (outputTokens / 1_000_000) * p.openaiImageOutputPer1M;
 
     return roundUsd(inputCost + outputCost);
   }
 
-  private estimateReplicate(
-    usage?: ReplicateUsage,
-    modelId?: string,
-  ): number {
+  private estimateReplicate(usage?: ReplicateUsage, modelId?: string): number {
     if (!usage?.predictTimeSeconds || usage.predictTimeSeconds <= 0) return 0;
     const p = this.pricing;
     const rate =

@@ -1,6 +1,9 @@
 import { ForbiddenException } from '@nestjs/common';
 import type { AppDataService } from '../integrations/app-data.service.js';
-import type { ProjectMemberRole, ProjectRow } from '../integrations/app-data.types.js';
+import type {
+  ProjectMemberRole,
+  ProjectRow,
+} from '../integrations/app-data.types.js';
 import { hasPermission } from '../collaboration/models/collaboration.model.js';
 import { throwProjectAccessDenied } from './project-access.exceptions.js';
 

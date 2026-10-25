@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { requireProjectRole } from '../projects/project-access.js';
@@ -19,6 +20,7 @@ import type {
   CollaborationActivityRow,
   CollaborationDocumentRow,
   CollaborationDocumentType,
+  CollaborationSnapshotRow,
   ProjectCommentRow,
   ProjectMemberRole,
 } from '../integrations/app-data.types.js';
@@ -26,6 +28,7 @@ import { buildDocumentName } from '../collaboration-yjs/document-name.js';
 import {
   snapshotObjectPath,
   snapshotVersionObjectPath,
+  snapshotPreviewObjectPath,
   legacyFoundrySnapshotObjectPath,
   getCollabBucket,
 } from '../collaboration-yjs/collab-persistence.js';
@@ -49,6 +52,7 @@ import {
   type SurfaceConnectionResponse,
   type CommentResponse,
   type SnapshotResponse,
+  type SnapshotPreviewUploadResponse,
   type RestoreSnapshotResponse,
   type CollaborationActivityResponse,
   type DocumentContentResponse,
@@ -60,6 +64,16 @@ import type { CreateReplyDto } from './dto/create-reply.dto.js';
 import type { UpdateCommentDto } from './dto/update-comment.dto.js';
 import type { CreateActivityDto } from './dto/create-activity.dto.js';
 import type { UpdateActivityDto } from './dto/update-activity.dto.js';
+import type {
+  CompleteSnapshotPreviewDto,
+  CreateSnapshotDto,
+  CreateSnapshotPreviewUploadDto,
+  SnapshotPreviewMimeType,
+} from './dto/create-snapshot.dto.js';
+import { canonicalSha256 } from '@markaschmidt/ui-builder-contracts';
+import { UiContextIndexQueue } from '../ui-agent/indexer/ui-context-index.queue.js';
+import { correlationAttributes } from '../telemetry/otel-attributes.js';
+import { TelemetryService } from '../telemetry/telemetry.service.js';
 
 @Injectable()
 export class CollaborationDocumentsService {
@@ -69,6 +83,8 @@ export class CollaborationDocumentsService {
     private readonly appData: AppDataService,
     private readonly commentNotifications: CollaborationCommentNotificationsService,
     private readonly supabase: SupabaseService,
+    private readonly contextIndexQueue: UiContextIndexQueue,
+    @Optional() private readonly telemetry?: TelemetryService,
   ) {}
 
   // ─── Collab config / project session ────────────────────────────────────────
@@ -362,8 +378,15 @@ export class CollaborationDocumentsService {
       anchor: dto.anchor,
     });
 
-    await this.notifyMentions(row, dto.mentionedUserIds);
-    await this.recordCommentActivity(projectId, documentId, userId, 'comment_created', row);
+    this.notifyMentions(row, dto.mentionedUserIds);
+    await this.recordCommentActivity(
+      projectId,
+      documentId,
+      userId,
+      'comment_created',
+      row,
+    );
+    await this.enqueueCommentIndex(row, documentId);
     return toCommentResponse(row);
   }
 
@@ -400,11 +423,19 @@ export class CollaborationDocumentsService {
         parentCommentId: commentId,
       });
     }
-    await this.notifyMentions(row, dto.mentionedUserIds);
-    await this.recordCommentActivity(projectId, documentId, userId, 'comment_replied', row, {
-      parentCommentId: commentId,
-    });
+    this.notifyMentions(row, dto.mentionedUserIds);
+    await this.recordCommentActivity(
+      projectId,
+      documentId,
+      userId,
+      'comment_replied',
+      row,
+      {
+        parentCommentId: commentId,
+      },
+    );
 
+    await this.enqueueCommentIndex(row, documentId);
     return toCommentResponse(row);
   }
 
@@ -428,6 +459,7 @@ export class CollaborationDocumentsService {
       body: dto.body,
     });
     if (!updated) throw new NotFoundException('Comment not found');
+    await this.enqueueCommentIndex(updated, documentId);
     return toCommentResponse(updated);
   }
 
@@ -453,9 +485,17 @@ export class CollaborationDocumentsService {
       resolved,
     );
     if (!updated) throw new NotFoundException('Comment not found');
-    await this.recordCommentActivity(projectId, documentId, userId, 'comment_resolved', updated, {
-      resolved,
-    });
+    await this.recordCommentActivity(
+      projectId,
+      documentId,
+      userId,
+      'comment_resolved',
+      updated,
+      {
+        resolved,
+      },
+    );
+    await this.enqueueCommentIndex(updated, documentId);
     return toCommentResponse(updated);
   }
 
@@ -475,6 +515,17 @@ export class CollaborationDocumentsService {
     this.assertCommentWritable(comment, userId, role);
 
     await this.appData.deleteProjectComment(commentId);
+    await this.contextIndexQueue.enqueueSource({
+      kind: 'source',
+      projectId,
+      documentId,
+      sourceKind: 'comment',
+      sourceId: commentId,
+      sourceHash: canonicalSha256({
+        commentId,
+        status: 'deleted',
+      }),
+    });
   }
 
   // ─── Version history ───────────────────────────────────────────────────────
@@ -492,7 +543,7 @@ export class CollaborationDocumentsService {
       document.documentKey,
       { limit },
     );
-    return rows.map(toSnapshotResponse);
+    return Promise.all(rows.map((row) => this.toSnapshotResponseWithPreview(row)));
   }
 
   async getVersion(
@@ -509,7 +560,142 @@ export class CollaborationDocumentsService {
     if (!snapshot || snapshot.documentKey !== document.documentKey) {
       throw new NotFoundException('Version not found');
     }
-    return toSnapshotResponse(snapshot);
+    return this.toSnapshotResponseWithPreview(snapshot);
+  }
+
+  /**
+   * Named restore point from the current persisted latest.yjs bytes.
+   * Does not rewrite live storage or the in-memory collab room.
+   */
+  async createVersion(
+    projectId: string,
+    documentId: string,
+    userId: string,
+    dto: CreateSnapshotDto,
+  ): Promise<SnapshotResponse> {
+    await requireProjectRole(this.appData, userId, projectId, 'editor');
+    const document = await this.requireDocument(projectId, documentId);
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('Snapshot name is required');
+    }
+
+    const bytes = await this.downloadLatestYjsBytes(projectId, document);
+    if (bytes.byteLength === 0) {
+      throw new BadRequestException(
+        'Document has no persisted content to snapshot',
+      );
+    }
+
+    const snapshotId = generateSnapshotId();
+    const bucket = getCollabBucket();
+    const versionObjectPath = snapshotVersionObjectPath(
+      { projectId, documentType: document.documentType, documentId },
+      snapshotId,
+    );
+    await this.supabase.uploadObject(
+      versionObjectPath,
+      bytes,
+      'application/octet-stream',
+      bucket,
+    );
+    const row = await this.appData.createCollaborationSnapshot({
+      snapshotId,
+      documentKey: document.documentKey,
+      documentId: document.documentId,
+      storageRef: `supabase://${bucket}/${versionObjectPath}`,
+      byteLength: bytes.byteLength,
+      createdByUserId: userId,
+      name,
+    });
+    return this.toSnapshotResponseWithPreview(row);
+  }
+
+  /**
+   * Reserve a signed PUT for a screenshot on this snapshot. Bytes go to the
+   * collaboration-snapshots bucket, not project-assets / the repository.
+   */
+  async createVersionPreviewUpload(
+    projectId: string,
+    documentId: string,
+    snapshotId: string,
+    userId: string,
+    dto: CreateSnapshotPreviewUploadDto,
+  ): Promise<SnapshotPreviewUploadResponse> {
+    await requireProjectRole(this.appData, userId, projectId, 'editor');
+    const snapshot = await this.requireDocumentSnapshot(
+      projectId,
+      documentId,
+      snapshotId,
+    );
+    const document = await this.requireDocument(projectId, documentId);
+    const extension = previewExtension(dto.contentType);
+    const bucket = getCollabBucket();
+    const objectPath = snapshotPreviewObjectPath(
+      {
+        projectId,
+        documentType: document.documentType,
+        documentId,
+      },
+      snapshot.snapshotId,
+      extension,
+    );
+    if (snapshot.previewStorageRef) {
+      const previous = objectPathFromStorageRef(snapshot.previewStorageRef);
+      if (previous && previous !== objectPath) {
+        await this.supabase.deleteObject(previous, bucket).catch(() => undefined);
+      }
+    }
+    const signed = await this.supabase.createSignedUploadUrl(objectPath, bucket, {
+      upsert: true,
+    });
+    await this.appData.updateCollaborationSnapshotPreview({
+      snapshotId: snapshot.snapshotId,
+      previewStorageRef: `supabase://${bucket}/${objectPath}`,
+      previewContentType: dto.contentType,
+      previewByteLength: null,
+    });
+    return {
+      snapshotId: snapshot.snapshotId,
+      uploadUrl: signed.signedUrl,
+      token: signed.token,
+      path: signed.path,
+      contentType: dto.contentType,
+      expiresInSeconds: 7200,
+    };
+  }
+
+  async completeVersionPreview(
+    projectId: string,
+    documentId: string,
+    snapshotId: string,
+    userId: string,
+    dto: CompleteSnapshotPreviewDto,
+  ): Promise<SnapshotResponse> {
+    await requireProjectRole(this.appData, userId, projectId, 'editor');
+    const snapshot = await this.requireDocumentSnapshot(
+      projectId,
+      documentId,
+      snapshotId,
+    );
+    const objectPath = snapshot.previewStorageRef
+      ? objectPathFromStorageRef(snapshot.previewStorageRef)
+      : null;
+    if (!objectPath) {
+      throw new BadRequestException('No preview upload has been reserved');
+    }
+    const exists = await this.supabase.objectExists(
+      objectPath,
+      getCollabBucket(),
+    );
+    if (!exists) {
+      throw new BadRequestException('Preview bytes were not found in storage');
+    }
+    const updated = await this.appData.updateCollaborationSnapshotPreview({
+      snapshotId: snapshot.snapshotId,
+      previewByteLength: dto.byteLength ?? snapshot.previewByteLength,
+    });
+    return this.toSnapshotResponseWithPreview(updated ?? snapshot);
   }
 
   /**
@@ -565,6 +751,25 @@ export class CollaborationDocumentsService {
       'application/octet-stream',
       bucket,
     );
+    const restoredStorageRef = `supabase://${bucket}/${restoredObjectPath}`;
+    const { error: restoredSnapshotError } = await this.supabase
+      .getAdminClient()
+      .from('collaboration_snapshot')
+      .insert({
+        snapshot_id: restoredSnapshotId,
+        document_key: document.documentKey,
+        document_id: document.documentId,
+        state_vector: snapshot.stateVector ?? null,
+        storage_ref: restoredStorageRef,
+        byte_length: bytes.byteLength,
+        created_by_user_id: userId,
+        created_at: new Date().toISOString(),
+      });
+    if (restoredSnapshotError) {
+      throw new Error(
+        `Restored collaboration snapshot insert failed: ${restoredSnapshotError.message}`,
+      );
+    }
 
     const updated = await this.appData.updateCollaborationDocument(
       document.documentKey,
@@ -573,6 +778,21 @@ export class CollaborationDocumentsService {
         updatedByUserId: userId,
       },
     );
+    if (
+      document.documentType === 'gui_screen' ||
+      document.documentType === 'storyboard'
+    ) {
+      await this.contextIndexQueue.enqueueSnapshot({
+        kind: 'snapshot',
+        projectId,
+        documentId,
+        documentKey: document.documentKey,
+        documentType: document.documentType,
+        snapshotId: restoredSnapshotId,
+        stateVector: snapshot.stateVector ?? '',
+        storageRef: restoredStorageRef,
+      });
+    }
     this.logger.log(
       `Restored document ${documentId} in project ${projectId} to snapshot ${snapshotId}`,
     );
@@ -784,10 +1004,39 @@ export class CollaborationDocumentsService {
     this.logger.log(
       `Activity ${activityId} reconciled into project ${projectId} by ${userId}`,
     );
+    this.telemetry?.addAttributes(
+      correlationAttributes({
+        projectId,
+        activityId,
+        documentId: updated.documentId,
+        requestId: updated.requestId,
+      }),
+    );
     return toCollaborationActivityResponse(updated);
   }
 
   // ─── Internal helpers ─────────────────────────────────────────────────────────
+
+  private async enqueueCommentIndex(
+    comment: ProjectCommentRow,
+    documentId: string,
+  ): Promise<void> {
+    await this.contextIndexQueue.enqueueSource({
+      kind: 'source',
+      projectId: comment.projectId,
+      documentId,
+      sourceKind: 'comment',
+      sourceId: comment.commentId,
+      sourceHash: canonicalSha256({
+        commentId: comment.commentId,
+        body: comment.body,
+        status: comment.status,
+        anchor: comment.anchor ?? null,
+        parentCommentId: comment.parentCommentId ?? null,
+        updatedAt: comment.updatedAt.toISOString(),
+      }),
+    });
+  }
 
   private async requireDocument(
     projectId: string,
@@ -799,6 +1048,76 @@ export class CollaborationDocumentsService {
     );
     if (!document) throw new NotFoundException('Document not found');
     return document;
+  }
+
+  private async requireDocumentSnapshot(
+    projectId: string,
+    documentId: string,
+    snapshotId: string,
+  ): Promise<CollaborationSnapshotRow> {
+    const document = await this.requireDocument(projectId, documentId);
+    const snapshot =
+      await this.appData.getCollaborationSnapshotById(snapshotId);
+    if (!snapshot || snapshot.documentKey !== document.documentKey) {
+      throw new NotFoundException('Version not found');
+    }
+    return snapshot;
+  }
+
+  private async downloadLatestYjsBytes(
+    projectId: string,
+    document: CollaborationDocumentRow,
+  ): Promise<Buffer> {
+    const bucket = getCollabBucket();
+    const objectPath = snapshotObjectPath({
+      projectId,
+      documentType: document.documentType,
+      documentId: document.documentId,
+    });
+    try {
+      return await this.supabase.downloadObject(objectPath, bucket);
+    } catch (err) {
+      if (
+        isStorageObjectNotFoundError(err) &&
+        document.documentType === 'foundry'
+      ) {
+        try {
+          return await this.supabase.downloadObject(
+            legacyFoundrySnapshotObjectPath({
+              projectId,
+              documentId: document.documentId,
+            }),
+            bucket,
+          );
+        } catch (legacyErr) {
+          if (isStorageObjectNotFoundError(legacyErr)) return Buffer.alloc(0);
+          throw legacyErr;
+        }
+      }
+      if (isStorageObjectNotFoundError(err)) return Buffer.alloc(0);
+      throw err;
+    }
+  }
+
+  private async toSnapshotResponseWithPreview(
+    row: CollaborationSnapshotRow,
+  ): Promise<SnapshotResponse> {
+    const objectPath = row.previewStorageRef
+      ? objectPathFromStorageRef(row.previewStorageRef)
+      : null;
+    if (!objectPath || row.previewByteLength == null) {
+      return toSnapshotResponse(row);
+    }
+    try {
+      const previewUrl = await this.supabase.createSignedDownloadUrl(
+        objectPath,
+        3600,
+        getCollabBucket(),
+      );
+      return toSnapshotResponse(row, { previewUrl });
+    } catch {
+      return toSnapshotResponse(row);
+    }
   }
 
   private async requireComment(
@@ -840,10 +1159,10 @@ export class CollaborationDocumentsService {
     );
   }
 
-  private async notifyMentions(
+  private notifyMentions(
     comment: ProjectCommentRow,
     mentionedUserIds?: string[],
-  ): Promise<void> {
+  ): void {
     this.commentNotifications.enqueueMentions({
       projectId: comment.projectId,
       authorUserId: comment.authorUserId,
@@ -864,7 +1183,10 @@ export class CollaborationDocumentsService {
     comment: ProjectCommentRow,
     extra?: Record<string, unknown>,
   ): Promise<void> {
-    const document = await this.appData.getCollaborationDocumentById(projectId, documentId);
+    const document = await this.appData.getCollaborationDocumentById(
+      projectId,
+      documentId,
+    );
     await this.appData.createCollaborationActivity({
       activityId: generateActivityId(),
       projectId,
@@ -906,6 +1228,12 @@ function isStorageObjectNotFoundError(err: unknown): boolean {
     message.includes('Not Found') ||
     message.includes('Object not found')
   );
+}
+
+function previewExtension(contentType: SnapshotPreviewMimeType): string {
+  if (contentType === 'image/jpeg') return 'jpg';
+  if (contentType === 'image/webp') return 'webp';
+  return 'png';
 }
 
 function objectPathFromStorageRef(storageRef: string): string | null {

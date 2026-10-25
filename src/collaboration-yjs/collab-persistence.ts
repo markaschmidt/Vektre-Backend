@@ -70,6 +70,15 @@ export function snapshotVersionObjectPath(
   return `projects/${parsed.projectId}/docs/${parsed.documentType}/${parsed.documentId}/snapshots/${snapshotId}.yjs`;
 }
 
+/** Screenshot attached to a named snapshot. Same bucket, never a project_asset. */
+export function snapshotPreviewObjectPath(
+  parsed: Pick<ParsedDocumentName, 'projectId' | 'documentType' | 'documentId'>,
+  snapshotId: string,
+  extension: string,
+): string {
+  return `projects/${parsed.projectId}/docs/${parsed.documentType}/${parsed.documentId}/snapshots/${snapshotId}.preview.${extension}`;
+}
+
 function isDuplicateKeyError(error: {
   code?: string;
   message: string;
@@ -184,7 +193,7 @@ export async function storeDocumentSnapshot(
   parsed: ParsedDocumentName,
   document: Y.Doc,
   userId: string,
-): Promise<void> {
+): Promise<StoredDocumentSnapshot> {
   const client = getAdminClient();
   const bucket = getCollabBucket();
   const objectPath = snapshotObjectPath(parsed);
@@ -282,6 +291,17 @@ export async function storeDocumentSnapshot(
   }
 
   await pruneOldSnapshots(client, bucket, parsed.documentKey);
+  return {
+    snapshotId,
+    stateVector: Buffer.from(stateVector).toString('base64'),
+    storageRef: versionStorageRef,
+  };
+}
+
+export interface StoredDocumentSnapshot {
+  snapshotId: string;
+  stateVector: string;
+  storageRef: string;
 }
 
 /**
@@ -300,8 +320,9 @@ async function pruneOldSnapshots(
 
   const { data: staleRows, error: staleError } = await client
     .from('collaboration_snapshot')
-    .select('snapshot_id, storage_ref')
+    .select('snapshot_id, storage_ref, preview_storage_ref')
     .eq('document_key', documentKey)
+    .is('name', null)
     .order('created_at', { ascending: false })
     .range(keep, keep + 500);
 
@@ -313,9 +334,13 @@ async function pruneOldSnapshots(
     .delete()
     .in('snapshot_id', staleIds);
 
-  const staleObjectPaths = staleRows
-    .map((row) => storageRefToObjectPath(row.storage_ref as string | null))
-    .filter((path): path is string => Boolean(path));
+  const staleObjectPaths = staleRows.flatMap((row) => {
+    const paths = [
+      storageRefToObjectPath(row.storage_ref as string | null),
+      storageRefToObjectPath(row.preview_storage_ref as string | null),
+    ];
+    return paths.filter((path): path is string => Boolean(path));
+  });
   if (staleObjectPaths.length > 0) {
     await client.storage.from(bucket).remove(staleObjectPaths);
   }

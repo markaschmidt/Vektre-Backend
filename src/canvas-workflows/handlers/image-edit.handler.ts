@@ -189,8 +189,6 @@ export class ImageEditActionHandler implements CanvasActionHandler {
   }
 
   private optionalString(value: unknown): string | undefined {
-    return typeof value === 'string' && value.trim()
-      ? value.trim()
-      : undefined;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 }

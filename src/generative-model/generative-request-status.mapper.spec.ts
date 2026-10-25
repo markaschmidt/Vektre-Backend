@@ -1,9 +1,7 @@
 import { mapGenerativeRequestStatus } from './generative-request-status.mapper.js';
 import type { RequestStatusRow } from '../integrations/app-data.types.js';
 
-function makeRow(
-  overrides: Partial<RequestStatusRow> = {},
-): RequestStatusRow {
+function makeRow(overrides: Partial<RequestStatusRow> = {}): RequestStatusRow {
   return {
     requestId: 'req-1',
     userId: 'user-1',
@@ -56,7 +54,9 @@ describe('mapGenerativeRequestStatus', () => {
 
     expect(result.jobStatus).toBe('succeeded');
     expect(result.modelUrl).toBe('https://delivery.replicate.com/model.glb');
-    expect(result.previewUrl).toBe('https://delivery.replicate.com/preview.png');
+    expect(result.previewUrl).toBe(
+      'https://delivery.replicate.com/preview.png',
+    );
     expect(result.outputRef).toBe('https://delivery.replicate.com/model.glb');
     expect(result.predictionId).toBe('pred-xyz');
   });
@@ -74,9 +74,7 @@ describe('mapGenerativeRequestStatus', () => {
   });
 
   it('maps cancelled to jobStatus canceled', () => {
-    const result = mapGenerativeRequestStatus(
-      makeRow({ status: 'cancelled' }),
-    );
+    const result = mapGenerativeRequestStatus(makeRow({ status: 'cancelled' }));
     expect(result.jobStatus).toBe('canceled');
   });
 

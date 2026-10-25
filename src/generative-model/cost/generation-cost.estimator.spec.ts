@@ -9,6 +9,7 @@ describe('GenerationCostEstimator', () => {
   const estimator = new GenerationCostEstimator({
     get: () => ({
       openaiTextInputPer1M: 5,
+      openaiTextOutputPer1M: 15,
       openaiImageInputPer1M: 8,
       openaiImageOutputPer1M: 30,
       openaiInputBlendedPer1M: 5,
@@ -43,6 +44,18 @@ describe('GenerationCostEstimator', () => {
 
   it('returns 0 for local provider', () => {
     expect(estimator.estimateUsd('local', {})).toBe(0);
+  });
+
+  it('uses provider-reported OpenRouter text cost when available', () => {
+    expect(
+      estimator.estimateUsd('openrouter', {
+        text: {
+          inputTokens: 1_000,
+          outputTokens: 500,
+          providerCostUsd: 0.0123,
+        },
+      }),
+    ).toBe(0.0123);
   });
 });
 

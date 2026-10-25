@@ -16,7 +16,9 @@ describe('collab-auth', () => {
   });
 
   it('rejects missing tokens', async () => {
-    await expect(verifyCollabToken('')).rejects.toThrow('Missing collaboration token');
+    await expect(verifyCollabToken('')).rejects.toThrow(
+      'Missing collaboration token',
+    );
     expect(mockGetUser).not.toHaveBeenCalled();
   });
 

@@ -9,12 +9,17 @@
  *   configured model $/sec rates (or a default GPU rate).
  */
 
-export type GenerationCostProvider = 'openai' | 'replicate' | 'local';
+export type GenerationCostProvider =
+  | 'openai'
+  | 'openrouter'
+  | 'replicate'
+  | 'local';
 
 export type GenerationCostSurface =
   | 'storyboard'
   | 'foundry'
   | 'canvas'
+  | 'gui_screen'
   | 'direct'
   | 'unknown';
 
@@ -38,6 +43,14 @@ export interface ReplicateUsage {
 
 export interface GenerationUsagePayload {
   openai?: OpenAiImageUsage;
+  text?: {
+    inputTokens: number;
+    cachedInputTokens?: number;
+    imageInputTokens?: number;
+    outputTokens: number;
+    reasoningTokens?: number;
+    providerCostUsd?: number;
+  };
   replicate?: ReplicateUsage;
   notes?: string;
 }
@@ -56,6 +69,25 @@ export interface RecordGenerationUsageInput {
   billable?: boolean;
   /** Override estimator (e.g. tests). */
   estimatedCostUsd?: number;
+  documentId?: string;
+  threadId?: string;
+  runId?: string;
+  stage?: string;
+  providerRequestId?: string;
+  requestedModel?: string;
+  actualModel?: string;
+  modelPresetId?: string;
+  promptVersion?: string;
+  schemaVersion?: string;
+  contextManifestVersion?: string;
+  providerCostUsd?: number;
+  priceTableVersion?: string;
+  latencyMs?: number;
+  retryCount?: number;
+  repairAttempts?: number;
+  outcome?: string;
+  errorCategory?: string;
+  imageCount?: number;
 }
 
 export interface GenerationUsageEventRow {
@@ -73,6 +105,25 @@ export interface GenerationUsageEventRow {
   currency: string;
   billable: boolean;
   createdAt: Date;
+  documentId?: string;
+  threadId?: string;
+  runId?: string;
+  stage?: string;
+  providerRequestId?: string;
+  requestedModel?: string;
+  actualModel?: string;
+  modelPresetId?: string;
+  promptVersion?: string;
+  schemaVersion?: string;
+  contextManifestVersion?: string;
+  providerCostUsd?: number;
+  priceTableVersion?: string;
+  latencyMs?: number;
+  retryCount?: number;
+  repairAttempts?: number;
+  outcome?: string;
+  errorCategory?: string;
+  imageCount?: number;
 }
 
 export interface ProjectCostByActor {
@@ -81,10 +132,27 @@ export interface ProjectCostByActor {
   eventCount: number;
 }
 
+export interface ProjectCostBySurface {
+  surface: string;
+  estimatedCostUsd: number;
+  eventCount: number;
+}
+
+export interface ProjectCostByModel {
+  provider: string;
+  modelId?: string;
+  estimatedCostUsd: number;
+  eventCount: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface ProjectCostPeriodSummary {
   estimatedCostUsd: number;
   eventCount: number;
   byActor: ProjectCostByActor[];
+  bySurface: ProjectCostBySurface[];
+  byModel: ProjectCostByModel[];
 }
 
 export interface ProjectCostSummaryResponse {

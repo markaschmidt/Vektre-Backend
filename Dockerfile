@@ -6,6 +6,8 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
+# file: workspace package — must exist before pnpm install
+COPY contracts/ui-builder ./contracts/ui-builder
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
@@ -18,11 +20,13 @@ ENV NODE_ENV=production
 RUN addgroup -S vektre && adduser -S vektre -G vektre
 
 COPY package.json pnpm-lock.yaml ./
+COPY contracts/ui-builder ./contracts/ui-builder
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts \
   && pnpm store prune \
   && rm -rf /root/.local/share/pnpm/store
 
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/contracts/ui-builder/dist ./contracts/ui-builder/dist
 
 USER vektre
 

@@ -1,4 +1,7 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { RiggingService } from './rigging.service.js';
 
 describe('RiggingService', () => {
@@ -41,7 +44,11 @@ describe('RiggingService', () => {
   });
 
   it('rejects when RigAnything is not configured', async () => {
-    config.getOrThrow.mockReturnValueOnce({ enabled: false, url: '', apiKey: '' });
+    config.getOrThrow.mockReturnValueOnce({
+      enabled: false,
+      url: '',
+      apiKey: '',
+    });
     await expect(
       service.createJob('user-1', { assetId: 'asset-1' }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
@@ -74,7 +81,8 @@ describe('RiggingService', () => {
     assets.reserveRiggedAssetUpload.mockResolvedValue({
       assetId: 'rigged-1',
       storagePath: 'projects/proj-1/assets/rigged-1/rigged-1.glb',
-      storageRef: 'supabase://project-assets/projects/proj-1/assets/rigged-1/rigged-1.glb',
+      storageRef:
+        'supabase://project-assets/projects/proj-1/assets/rigged-1/rigged-1.glb',
       bucket: 'project-assets',
       uploadUrl: 'https://signed.example/upload',
     });

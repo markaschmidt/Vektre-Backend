@@ -52,9 +52,16 @@ function clampTargetFaceNum(value: number): number {
   );
 }
 
-function normalizeFileType(value: string): Hunyuan2mvGenerationOptions['file_type'] | undefined {
+function normalizeFileType(
+  value: string,
+): Hunyuan2mvGenerationOptions['file_type'] | undefined {
   const lower = value.trim().toLowerCase();
-  if (lower === 'glb' || lower === 'obj' || lower === 'fbx' || lower === 'usdz') {
+  if (
+    lower === 'glb' ||
+    lower === 'obj' ||
+    lower === 'fbx' ||
+    lower === 'usdz'
+  ) {
     return lower;
   }
   return undefined;

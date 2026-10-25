@@ -87,7 +87,8 @@ export class GoogleDriveService {
     folderId?: string;
   }): Promise<GoogleDriveFileList> {
     const params = new URLSearchParams({
-      fields: 'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink)',
+      fields:
+        'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink)',
       pageSize: '100',
       orderBy: 'folder,name',
     });
@@ -436,7 +437,10 @@ export function normalizeDriveExportFileName(
   fileName: string,
   mimeType: string,
 ): string {
-  const trimmed = fileName.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ');
+  const trimmed = fileName
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ');
   if (!trimmed) {
     if (mimeType === 'text/markdown') return 'Untitled.md';
     if (mimeType === 'application/vnd.vektre.vkts') return 'Untitled.vkts';
@@ -452,7 +456,9 @@ export function normalizeDriveExportFileName(
   }
 
   if (mimeType === 'application/vnd.vektre.vkts') {
-    return trimmed.toLowerCase().endsWith('.vkts') ? trimmed : `${trimmed}.vkts`;
+    return trimmed.toLowerCase().endsWith('.vkts')
+      ? trimmed
+      : `${trimmed}.vkts`;
   }
 
   return trimmed;
@@ -501,7 +507,8 @@ export function buildMultipartBody(
   content: Buffer | string,
   contentMimeType: string,
 ): Buffer {
-  const contentBuffer = typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
+  const contentBuffer =
+    typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
   const mediaType = resolveDriveMediaContentType(contentMimeType);
 
   return Buffer.concat([
@@ -510,7 +517,10 @@ export function buildMultipartBody(
       'utf8',
     ),
     Buffer.from(JSON.stringify(metadata), 'utf8'),
-    Buffer.from(`\r\n--${boundary}\r\nContent-Type: ${mediaType}\r\n\r\n`, 'utf8'),
+    Buffer.from(
+      `\r\n--${boundary}\r\nContent-Type: ${mediaType}\r\n\r\n`,
+      'utf8',
+    ),
     contentBuffer,
     Buffer.from(`\r\n--${boundary}--`, 'utf8'),
   ]);

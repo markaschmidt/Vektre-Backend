@@ -79,7 +79,10 @@ describe('ImageEditActionHandler', () => {
 
   it('enqueues multimodal edit via shared enqueueConceptArt', async () => {
     const ctx = makeCtx({
-      config: { prompt: 'Same character, turn to the left', style: 'painterly' },
+      config: {
+        prompt: 'Same character, turn to the left',
+        style: 'painterly',
+      },
       inputs: {
         texts: [],
         assets: [

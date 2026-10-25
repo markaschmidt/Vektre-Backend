@@ -214,8 +214,12 @@ describe('Yjs collaboration smoke test (multi-surface)', () => {
     expect(shared?.has('wf-1')).toBe(true);
     expect(shared?.has('wf-2')).toBe(true);
 
-    const wf1Nodes = (shared?.get('wf-1') as Y.Map<unknown>).get('nodes') as Y.Map<unknown>;
-    const wf2Nodes = (shared?.get('wf-2') as Y.Map<unknown>).get('nodes') as Y.Map<unknown>;
+    const wf1Nodes = (shared?.get('wf-1') as Y.Map<unknown>).get(
+      'nodes',
+    ) as Y.Map<unknown>;
+    const wf2Nodes = (shared?.get('wf-2') as Y.Map<unknown>).get(
+      'nodes',
+    ) as Y.Map<unknown>;
     expect(wf1Nodes.get('node-a')).toMatchObject({ kind: 'concept_art' });
     expect(wf2Nodes.get('node-b')).toMatchObject({ kind: 'repository_asset' });
 

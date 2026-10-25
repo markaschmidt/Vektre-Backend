@@ -33,7 +33,9 @@ export class ProjectAccessRevokedException extends HttpException {
   }
 }
 
-export function throwProjectAccessDenied(reason: ProjectAccessDenialReason): never {
+export function throwProjectAccessDenied(
+  reason: ProjectAccessDenialReason,
+): never {
   switch (reason) {
     case 'deleted':
       throw new ProjectDeletedException();

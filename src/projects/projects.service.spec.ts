@@ -3,7 +3,12 @@ import type { Queue } from 'bullmq';
 import { ProjectsService } from './projects.service.js';
 import type { AppDataService } from '../integrations/app-data.service.js';
 import type { CollaborationService } from '../collaboration/collaboration.service.js';
-import type { ProjectOpJobData, ProjectOpJobName } from './models/project-op-job.model.js';
+import type { OrganizationsService } from '../organizations/organizations.service.js';
+import type { StorageQuotaService } from '../storage-quota/storage-quota.service.js';
+import type {
+  ProjectOpJobData,
+  ProjectOpJobName,
+} from './models/project-op-job.model.js';
 
 describe('ProjectsService.deleteProject', () => {
   let service: ProjectsService;
@@ -19,13 +24,25 @@ describe('ProjectsService.deleteProject', () => {
   const collaboration = {
     listMembers: jest.fn(),
   };
+  const organizations = {
+    requireExecutive: jest.fn().mockResolvedValue({ role: 'executive' }),
+  };
+  const storageQuota = {
+    assertWithinQuota: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     service = new ProjectsService(
-      projectQueue as unknown as Queue<ProjectOpJobData, void, ProjectOpJobName>,
+      projectQueue as unknown as Queue<
+        ProjectOpJobData,
+        void,
+        ProjectOpJobName
+      >,
       appData as unknown as AppDataService,
       collaboration as unknown as CollaborationService,
+      organizations as unknown as OrganizationsService,
+      storageQuota as unknown as StorageQuotaService,
     );
   });
 
@@ -88,5 +105,32 @@ describe('ProjectsService.deleteProject', () => {
       ForbiddenException,
     );
     expect(projectQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('requires an executive role for organization projects', async () => {
+    appData.getProjectForUser.mockResolvedValue(null);
+
+    await service.createProject('owner-1', {
+      name: 'Organization project',
+      organizationId: 'org-1',
+    });
+
+    expect(organizations.requireExecutive).toHaveBeenCalledWith(
+      'owner-1',
+      'org-1',
+    );
+    expect(projectQueue.add).toHaveBeenCalledWith(
+      'project-create',
+      expect.objectContaining({ organizationId: 'org-1' }),
+      expect.any(Object),
+    );
+  });
+
+  it('does not require an organization role for a personal project', async () => {
+    appData.getProjectForUser.mockResolvedValue(null);
+
+    await service.createProject('owner-1', { name: 'Personal project' });
+
+    expect(organizations.requireExecutive).not.toHaveBeenCalled();
   });
 });

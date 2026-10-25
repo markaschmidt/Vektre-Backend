@@ -48,6 +48,7 @@ export interface NotionConfig {
 
 export interface GenerationPricingConfig {
   openaiTextInputPer1M: number;
+  openaiTextOutputPer1M: number;
   openaiImageInputPer1M: number;
   openaiImageOutputPer1M: number;
   openaiInputBlendedPer1M: number;
@@ -104,8 +105,7 @@ export const outboundConfig = registerAs('outbound', (): OutboundConfig => {
       maxRetries: Number(process.env['REPLICATE_MAX_RETRIES'] ?? 5),
       backoffMs: Number(process.env['REPLICATE_BACKOFF_MS'] ?? 2_000),
       fluxModel:
-        process.env['REPLICATE_FLUX_MODEL'] ??
-        'black-forest-labs/flux-2-pro',
+        process.env['REPLICATE_FLUX_MODEL'] ?? 'black-forest-labs/flux-2-pro',
     },
     openai: {
       apiKey: openaiApiKey!,
@@ -118,9 +118,7 @@ export const outboundConfig = registerAs('outbound', (): OutboundConfig => {
         process.env['OPENAI_IMAGE_QUALITY'],
       ),
       imageSize: parseOpenAiImageSize(process.env['OPENAI_IMAGE_SIZE']),
-      imageTimeoutMs: Number(
-        process.env['OPENAI_IMAGE_TIMEOUT_MS'] ?? 180_000,
-      ),
+      imageTimeoutMs: Number(process.env['OPENAI_IMAGE_TIMEOUT_MS'] ?? 180_000),
       imageHighTimeoutMs: Number(
         process.env['OPENAI_IMAGE_HIGH_TIMEOUT_MS'] ?? 600_000,
       ),
@@ -149,6 +147,9 @@ export const outboundConfig = registerAs('outbound', (): OutboundConfig => {
       // GPT Image list prices ($ / 1M tokens) — override via env as vendors change rates.
       openaiTextInputPer1M: Number(
         process.env['COST_OPENAI_TEXT_INPUT_PER_1M'] ?? 5,
+      ),
+      openaiTextOutputPer1M: Number(
+        process.env['COST_OPENAI_TEXT_OUTPUT_PER_1M'] ?? 15,
       ),
       openaiImageInputPer1M: Number(
         process.env['COST_OPENAI_IMAGE_INPUT_PER_1M'] ?? 8,
@@ -198,13 +199,10 @@ function parseOpenAiImageQuality(
   return 'medium';
 }
 
-function parseOpenAiImageSize(raw: string | undefined): OpenAiConfig['imageSize'] {
-  const allowed = new Set([
-    '1024x1024',
-    '1024x1536',
-    '1536x1024',
-    'auto',
-  ]);
+function parseOpenAiImageSize(
+  raw: string | undefined,
+): OpenAiConfig['imageSize'] {
+  const allowed = new Set(['1024x1024', '1024x1536', '1536x1024', 'auto']);
   if (raw && allowed.has(raw)) return raw as OpenAiConfig['imageSize'];
   return '1024x1024';
 }

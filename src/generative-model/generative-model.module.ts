@@ -16,6 +16,7 @@ import { GenerationCostEstimator } from './cost/generation-cost.estimator.js';
 import { GenerationCostService } from './cost/generation-cost.service.js';
 import { ProjectGenerationCostsFacade } from './cost/project-generation-costs.facade.js';
 import { ProjectGenerationCostsController } from './cost/project-generation-costs.controller.js';
+import { BillingModule } from '../billing/billing.module.js';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ProjectGenerationCostsController } from './cost/project-generation-cost
     ConfigModule,
     ProjectsModule,
     forwardRef(() => CanvasWorkflowsModule),
+    forwardRef(() => BillingModule),
   ],
   controllers: [GenerativeModelController, ProjectGenerationCostsController],
   providers: [
@@ -45,6 +47,10 @@ import { ProjectGenerationCostsController } from './cost/project-generation-cost
       inject: [OpenAiProviderAdapter],
     },
   ],
-  exports: [GenerativeModelService, GenerationCostService, ProjectGenerationCostsFacade],
+  exports: [
+    GenerativeModelService,
+    GenerationCostService,
+    ProjectGenerationCostsFacade,
+  ],
 })
 export class GenerativeModelModule {}

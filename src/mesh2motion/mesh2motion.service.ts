@@ -81,7 +81,10 @@ export class Mesh2MotionService {
       }
     }
 
-    const source = await this.assets.resolveAccessibleAsset(userId, dto.assetId);
+    const source = await this.assets.resolveAccessibleAsset(
+      userId,
+      dto.assetId,
+    );
     if (source.status !== 'ready' && source.status !== 'active') {
       throw new BadRequestException('Source asset is not ready');
     }
@@ -189,7 +192,7 @@ export class Mesh2MotionService {
 
     const workerStatus =
       typeof job.resultJson?.['workerStatus'] === 'string'
-        ? (job.resultJson['workerStatus'] as string)
+        ? job.resultJson['workerStatus']
         : null;
 
     return {

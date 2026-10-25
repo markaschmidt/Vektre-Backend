@@ -10,21 +10,27 @@ describe('GoogleDriveService.getExportMimeType', () => {
   let service: GoogleDriveService;
 
   beforeEach(() => {
-    service = new GoogleDriveService({ get: () => ({ timeoutMs: 30_000 }) } as never);
+    service = new GoogleDriveService({
+      get: () => ({ timeoutMs: 30_000 }),
+    } as never);
   });
 
   it('returns text/plain for Google Docs', () => {
-    expect(service.getExportMimeType('application/vnd.google-apps.document')).toBe('text/plain');
+    expect(
+      service.getExportMimeType('application/vnd.google-apps.document'),
+    ).toBe('text/plain');
   });
 
   it('returns xlsx mime for Google Sheets', () => {
-    expect(service.getExportMimeType('application/vnd.google-apps.spreadsheet')).toBe(
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
+    expect(
+      service.getExportMimeType('application/vnd.google-apps.spreadsheet'),
+    ).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   });
 
   it('returns pptx mime for Google Slides', () => {
-    expect(service.getExportMimeType('application/vnd.google-apps.presentation')).toBe(
+    expect(
+      service.getExportMimeType('application/vnd.google-apps.presentation'),
+    ).toBe(
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     );
   });
@@ -40,21 +46,27 @@ describe('GoogleDriveService.resolveExportTargetMimeType', () => {
   let service: GoogleDriveService;
 
   beforeEach(() => {
-    service = new GoogleDriveService({ get: () => ({ timeoutMs: 30_000 }) } as never);
+    service = new GoogleDriveService({
+      get: () => ({ timeoutMs: 30_000 }),
+    } as never);
   });
 
   it('defaults to markdown files', () => {
     expect(service.resolveExportTargetMimeType()).toBe('text/markdown');
-    expect(service.resolveExportTargetMimeType('markdown')).toBe('text/markdown');
+    expect(service.resolveExportTargetMimeType('markdown')).toBe(
+      'text/markdown',
+    );
   });
 
   it('maps google doc aliases to workspace mime type', () => {
     expect(service.resolveExportTargetMimeType('google-doc')).toBe(
       'application/vnd.google-apps.document',
     );
-    expect(service.resolveExportTargetMimeType('application/vnd.google-apps.document')).toBe(
-      'application/vnd.google-apps.document',
-    );
+    expect(
+      service.resolveExportTargetMimeType(
+        'application/vnd.google-apps.document',
+      ),
+    ).toBe('application/vnd.google-apps.document');
   });
 });
 
@@ -66,25 +78,33 @@ describe('normalizeDriveExportFileName', () => {
   });
 
   it('preserves binary filenames without forcing .md', () => {
-    expect(normalizeDriveExportFileName('character.glb', 'model/gltf-binary')).toBe(
-      'character.glb',
-    );
+    expect(
+      normalizeDriveExportFileName('character.glb', 'model/gltf-binary'),
+    ).toBe('character.glb');
   });
 
   it('strips .md for google doc exports', () => {
     expect(
-      normalizeDriveExportFileName('Story Draft.md', 'application/vnd.google-apps.document'),
+      normalizeDriveExportFileName(
+        'Story Draft.md',
+        'application/vnd.google-apps.document',
+      ),
     ).toBe('Story Draft');
   });
 
   it('appends .vkts extension for vkts MIME type', () => {
-    expect(normalizeDriveExportFileName('Budget Sheet', 'application/vnd.vektre.vkts')).toBe(
-      'Budget Sheet.vkts',
-    );
+    expect(
+      normalizeDriveExportFileName(
+        'Budget Sheet',
+        'application/vnd.vektre.vkts',
+      ),
+    ).toBe('Budget Sheet.vkts');
   });
 
   it('returns default .vkts filename when empty', () => {
-    expect(normalizeDriveExportFileName('', 'application/vnd.vektre.vkts')).toBe('Untitled.vkts');
+    expect(
+      normalizeDriveExportFileName('', 'application/vnd.vektre.vkts'),
+    ).toBe('Untitled.vkts');
   });
 });
 
@@ -101,17 +121,24 @@ describe('buildDriveFileMetadata', () => {
         fileName: 'Story',
         mimeType: 'application/vnd.google-apps.document',
       }),
-    ).toEqual({ name: 'Story', mimeType: 'application/vnd.google-apps.document' });
+    ).toEqual({
+      name: 'Story',
+      mimeType: 'application/vnd.google-apps.document',
+    });
   });
 });
 
 describe('resolveDriveMediaContentType', () => {
   it('maps markdown to text/plain for Google multipart media part', () => {
-    expect(resolveDriveMediaContentType('text/markdown')).toBe('text/plain; charset=UTF-8');
+    expect(resolveDriveMediaContentType('text/markdown')).toBe(
+      'text/plain; charset=UTF-8',
+    );
   });
 
   it('preserves binary mime types', () => {
-    expect(resolveDriveMediaContentType('model/gltf-binary')).toBe('model/gltf-binary');
+    expect(resolveDriveMediaContentType('model/gltf-binary')).toBe(
+      'model/gltf-binary',
+    );
   });
 });
 
@@ -126,11 +153,15 @@ describe('buildMultipartBody', () => {
     );
     const text = body.toString('utf8');
 
-    expect(text.startsWith(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`)).toBe(
-      true,
-    );
+    expect(
+      text.startsWith(
+        `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`,
+      ),
+    ).toBe(true);
     expect(text).toContain('{"name":"Story.md"}');
-    expect(text).toContain(`\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n`);
+    expect(text).toContain(
+      `\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n`,
+    );
     expect(text).toContain('# Title\n\nBody');
     expect(text.endsWith(`\r\n--${boundary}--`)).toBe(true);
   });

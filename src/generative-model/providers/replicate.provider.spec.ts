@@ -9,37 +9,49 @@ describe('ReplicateProviderAdapter.normalise', () => {
   let adapter: ReplicateProviderAdapter;
 
   beforeEach(() => {
-    adapter = new ReplicateProviderAdapter({ get: () => ({
-      token: 'test-token',
-      baseUrl: 'https://api.replicate.com',
-      timeoutMs: 30_000,
-      maxRetries: 3,
-      backoffMs: 1_000,
-    })} as never);
+    adapter = new ReplicateProviderAdapter({
+      get: () => ({
+        token: 'test-token',
+        baseUrl: 'https://api.replicate.com',
+        timeoutMs: 30_000,
+        maxRetries: 3,
+        backoffMs: 1_000,
+      }),
+    } as never);
   });
 
   // ─── Status mapping ────────────────────────────────────────────────────────
 
   it('maps starting to running', () => {
-    expect(adapter.normalise(makePrediction('starting')).status).toBe('running');
+    expect(adapter.normalise(makePrediction('starting')).status).toBe(
+      'running',
+    );
   });
 
   it('maps processing to running', () => {
-    expect(adapter.normalise(makePrediction('processing')).status).toBe('running');
+    expect(adapter.normalise(makePrediction('processing')).status).toBe(
+      'running',
+    );
   });
 
   it('maps succeeded to succeeded', () => {
-    expect(adapter.normalise(makePrediction('succeeded')).status).toBe('succeeded');
+    expect(adapter.normalise(makePrediction('succeeded')).status).toBe(
+      'succeeded',
+    );
   });
 
   it('maps failed to failed with errorMessage', () => {
-    const result = adapter.normalise(makePrediction('failed', null, 'bad input'));
+    const result = adapter.normalise(
+      makePrediction('failed', null, 'bad input'),
+    );
     expect(result.status).toBe('failed');
     expect(result.errorMessage).toBe('bad input');
   });
 
   it('maps canceled to canceled', () => {
-    expect(adapter.normalise(makePrediction('canceled')).status).toBe('canceled');
+    expect(adapter.normalise(makePrediction('canceled')).status).toBe(
+      'canceled',
+    );
   });
 
   // ─── Flat string[] output (legacy / other models) ─────────────────────────
@@ -93,7 +105,10 @@ describe('ReplicateProviderAdapter.normalise', () => {
   });
 
   it('handles single string output', () => {
-    const pred = makePrediction('succeeded', 'https://delivery.replicate.com/foo/model.obj');
+    const pred = makePrediction(
+      'succeeded',
+      'https://delivery.replicate.com/foo/model.obj',
+    );
     const result = adapter.normalise(pred);
     expect(result.modelUrls).toHaveLength(1);
     expect(result.modelUrls[0]).toContain('.obj');
@@ -149,7 +164,10 @@ describe('buildHunyuanInput', () => {
   });
 
   it('does not include requestId or userId', () => {
-    const input = buildHunyuanInput(undefined, 'test') as Record<string, unknown>;
+    const input = buildHunyuanInput(undefined, 'test') as Record<
+      string,
+      unknown
+    >;
     expect('requestId' in input).toBe(false);
     expect('userId' in input).toBe(false);
   });
@@ -175,7 +193,9 @@ describe('collectOutputUrls', () => {
   });
 
   it('collects a bare string', () => {
-    expect(collectOutputUrls('https://a.com/model.glb')).toEqual(['https://a.com/model.glb']);
+    expect(collectOutputUrls('https://a.com/model.glb')).toEqual([
+      'https://a.com/model.glb',
+    ]);
   });
 
   it('ignores non-http strings', () => {

@@ -8,6 +8,9 @@ import { ProjectsService } from './projects.service.js';
 import { AssetsService } from './assets.service.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { CollaborationModule } from '../collaboration/collaboration.module.js';
+import { OrganizationsModule } from '../organizations/organizations.module.js';
+import { StorageQuotaModule } from '../storage-quota/storage-quota.module.js';
+import { UiContextIndexQueueModule } from '../ui-agent/indexer/ui-context-index-queue.module.js';
 
 @Module({
   imports: [
@@ -15,6 +18,9 @@ import { CollaborationModule } from '../collaboration/collaboration.module.js';
     IntegrationsModule,
     NotificationsModule,
     CollaborationModule,
+    OrganizationsModule,
+    StorageQuotaModule,
+    UiContextIndexQueueModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService, ProjectsProcessor, AssetsService],

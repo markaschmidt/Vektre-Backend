@@ -54,7 +54,57 @@ describe('GenerationCostService.getProjectCostSummary', () => {
       ]),
     );
     expect(summary.total.byActor).toHaveLength(2);
+    expect(summary.total.bySurface).toEqual([
+      { surface: 'storyboard', estimatedCostUsd: 4, eventCount: 3 },
+    ]);
+    expect(summary.total.byModel[0]?.provider).toBe('openai');
     expect(summary.month.estimatedCostUsd).toBe(4);
     expect(summary.year.estimatedCostUsd).toBe(4);
+  });
+
+  it('records price-table estimates separately from provider-reported cost', async () => {
+    const upsert = jest.fn().mockResolvedValue(undefined);
+    const consume = jest.fn().mockResolvedValue(undefined);
+    const service = new GenerationCostService(
+      { upsertGenerationUsageEvent: upsert } as unknown as AppDataService,
+      { estimateUsd: jest.fn().mockReturnValue(1.25) } as unknown as GenerationCostEstimator,
+      { consumeGeneration: consume } as never,
+    );
+    await service.recordUsage({
+      requestId: 'stage-1',
+      projectId: 'p1',
+      actorUserId: 'u1',
+      provider: 'openai',
+      surface: 'gui_screen',
+      requestType: 'ui_agent_stage',
+      usage: { text: { inputTokens: 10, outputTokens: 4, providerCostUsd: 0.4 } },
+      estimatedCostUsd: 1.25,
+      providerCostUsd: 0.4,
+      priceTableVersion: 'ui-agent-2026-08',
+      providerRequestId: 'prov-1',
+    });
+    await service.recordUsage({
+      requestId: 'stage-1',
+      projectId: 'p1',
+      actorUserId: 'u1',
+      provider: 'openai',
+      surface: 'gui_screen',
+      requestType: 'ui_agent_stage',
+      usage: { text: { inputTokens: 10, outputTokens: 4, providerCostUsd: 0.4 } },
+      estimatedCostUsd: 1.25,
+      providerCostUsd: 0.4,
+      priceTableVersion: 'ui-agent-2026-08',
+      providerRequestId: 'prov-1',
+    });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: 'stage-1',
+        providerCostUsd: 0.4,
+        priceTableVersion: 'ui-agent-2026-08',
+        estimatedCostUsd: 1.25,
+      }),
+    );
+    expect(consume).toHaveBeenCalledTimes(2);
+    expect(consume.mock.calls[0]?.[0].requestId).toBe('stage-1');
   });
 });

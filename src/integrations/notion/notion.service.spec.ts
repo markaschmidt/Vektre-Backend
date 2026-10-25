@@ -31,9 +31,11 @@ describe('NotionService – API header construction', () => {
     } as never);
 
     // Access the private method via type assertion for testing
-    const headers = (service as unknown as {
-      apiHeaders: (t: string) => Record<string, string>;
-    }).apiHeaders('test-token');
+    const headers = (
+      service as unknown as {
+        apiHeaders: (t: string) => Record<string, string>;
+      }
+    ).apiHeaders('test-token');
 
     expect(headers['Notion-Version']).toBe('2022-06-28');
     expect(headers['Authorization']).toBe('Bearer test-token');

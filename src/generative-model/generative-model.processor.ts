@@ -35,9 +35,16 @@ import type {
   CanvasImageSplitJob,
 } from './models/gen-job.model.js';
 import { AssetsService } from '../projects/assets.service.js';
-import { modelPreviewAssetId } from '../projects/asset-conventions.js';
+import {
+  buildGeneratedPropNaming,
+  GENERATED_3D_ASSET_TYPE,
+  mintPropAssetId,
+  modelPreviewAssetId,
+} from '../projects/asset-conventions.js';
 import { CanvasImageSplitService } from '../canvas-workflows/canvas-image-split.service.js';
 import { GenerationCostService } from './cost/generation-cost.service.js';
+import { runWithJobTrace, tracedJobData } from '../telemetry/bullmq-trace.js';
+import { TelemetryService } from '../telemetry/telemetry.service.js';
 import {
   countMultiviewAssets,
   replicateModelIdForVariant,
@@ -80,16 +87,21 @@ export class GenerativeModelProcessor extends WorkerHost {
     @Optional() private readonly assets?: AssetsService,
     @Optional() private readonly imageSplit?: CanvasImageSplitService,
     @Optional() private readonly generationCosts?: GenerationCostService,
+    @Optional() private readonly telemetry?: TelemetryService,
   ) {
     super();
   }
 
   async process(job: Job<unknown, void, GenJobName>): Promise<void> {
+    return runWithJobTrace(job, this.telemetry, () => this.dispatch(job));
+  }
+
+  private async dispatch(job: Job<unknown, void, GenJobName>): Promise<void> {
     this.logger.log(
       JSON.stringify({ event: 'job_start', jobId: job.id, jobName: job.name }),
     );
 
-    switch (job.name as GenJobName) {
+    switch (job.name) {
       case 'run-inference':
         return this.handleRunInference(job as Job<RunInferenceJob>);
       case 'replicate-generate-3d':
@@ -118,9 +130,7 @@ export class GenerativeModelProcessor extends WorkerHost {
         }
         return this.imageSplit.run(job.data as CanvasImageSplitJob);
       default:
-        throw new Error(
-          `Unknown generative-model job: ${(job as Job).name as string}`,
-        );
+        throw new Error(`Unknown generative-model job: ${(job as Job).name}`);
     }
   }
 
@@ -179,11 +189,12 @@ export class GenerativeModelProcessor extends WorkerHost {
 
     await this.genQueue.add(
       JOB_REPLICATE_POLL_3D,
-      {
+      tracedJobData({
         requestId,
         userId,
         predictionId,
         enqueuedAt: new Date().toISOString(),
+        prompt: job.data.prompt,
         projectId: job.data.projectId,
         localProjectId: job.data.localProjectId,
         workflowId: job.data.workflowId,
@@ -191,10 +202,11 @@ export class GenerativeModelProcessor extends WorkerHost {
         runId: job.data.runId,
         activityId: job.data.activityId,
         preferredAssetId: job.data.preferredAssetId,
+        displayName: job.data.displayName,
         surface: job.data.surface,
         actionKind: job.data.actionKind,
         hunyuanModel: job.data.hunyuanModel,
-      } satisfies ReplicatePoll3dJob,
+      } satisfies ReplicatePoll3dJob),
       {
         ...defaultJobOptions,
         jobId: bullJobId('replicate-poll', predictionId),
@@ -232,13 +244,12 @@ export class GenerativeModelProcessor extends WorkerHost {
         // Re-enqueue for another poll
         await this.genQueue.add(
           JOB_REPLICATE_POLL_3D,
-          job.data,
+          tracedJobData(job.data),
           {
-            ...defaultJobOptions,
-            jobId: bullJobId('replicate-poll', predictionId, String(Date.now())),
-            delay: REPLICATE_POLL_DELAY_MS,
-          },
-        );
+          ...defaultJobOptions,
+          jobId: bullJobId('replicate-poll', predictionId, String(Date.now())),
+          delay: REPLICATE_POLL_DELAY_MS,
+        });
         break;
 
       case 'succeeded': {
@@ -262,8 +273,12 @@ export class GenerativeModelProcessor extends WorkerHost {
 
         if (this.assets && (job.data.projectId || job.data.localProjectId)) {
           try {
-            const assetId =
-              job.data.preferredAssetId ?? `model-${requestId.slice(0, 8)}`;
+            const assetId = mintPropAssetId(job.data.preferredAssetId);
+            const naming = buildGeneratedPropNaming({
+              assetId,
+              prompt: job.data.prompt,
+              displayName: job.data.displayName,
+            });
             let importedAssetId = assetId;
 
             if (job.data.projectId) {
@@ -273,16 +288,19 @@ export class GenerativeModelProcessor extends WorkerHost {
                 {
                   requestId,
                   assetId,
-                  assetType: 'model',
-                  name: `${assetId}.glb`,
+                  assetType: GENERATED_3D_ASSET_TYPE,
+                  name: naming.name,
                   sourceUrl: modelUrl,
                   sourceProvider: 'replicate',
                   mimeType: 'model/gltf-binary',
                   metadata: {
+                    displayName: naming.displayName,
+                    projectRelativePath: naming.projectRelativePath,
                     workflowId: job.data.workflowId,
                     nodeId: job.data.nodeId,
                     runId: job.data.runId,
                     canvasOutput: true,
+                    sourcePrompt: job.data.prompt,
                   },
                 },
               );
@@ -316,17 +334,20 @@ export class GenerativeModelProcessor extends WorkerHost {
                 job.data.localProjectId,
                 {
                   assetId,
-                  assetType: 'model',
-                  name: `${assetId}.glb`,
+                  assetType: GENERATED_3D_ASSET_TYPE,
+                  name: naming.name,
                   mimeType: 'model/gltf-binary',
                   sourceUrl: modelUrl,
                   requestId,
                   sourceProvider: 'replicate',
                   metadata: {
+                    displayName: naming.displayName,
+                    projectRelativePath: naming.projectRelativePath,
                     localProjectId: job.data.localProjectId,
                     workflowId: job.data.workflowId,
                     nodeId: job.data.nodeId,
                     runId: job.data.runId,
+                    sourcePrompt: job.data.prompt,
                   },
                 },
               );
@@ -359,25 +380,28 @@ export class GenerativeModelProcessor extends WorkerHost {
             (resultJson as Record<string, unknown>).localProjectId =
               job.data.localProjectId;
             if (job.data.activityId) {
-              await this.appData.updateCollaborationActivity(job.data.activityId, {
-                status: 'completed',
-                result: {
-                  ...resultJson,
-                  assetId: importedAssetId,
-                  previewAssetId: modelPreviewAssetId(assetId),
-                  outputs: [
-                    {
-                      portId: 'model',
-                      assetId: importedAssetId,
-                      mimeType: 'model/gltf-binary',
-                    },
-                    {
-                      portId: 'asset',
-                      assetId: importedAssetId,
-                    },
-                  ],
+              await this.appData.updateCollaborationActivity(
+                job.data.activityId,
+                {
+                  status: 'completed',
+                  result: {
+                    ...resultJson,
+                    assetId: importedAssetId,
+                    previewAssetId: modelPreviewAssetId(assetId),
+                    outputs: [
+                      {
+                        portId: 'model',
+                        assetId: importedAssetId,
+                        mimeType: 'model/gltf-binary',
+                      },
+                      {
+                        portId: 'asset',
+                        assetId: importedAssetId,
+                      },
+                    ],
+                  },
                 },
-              });
+              );
             }
           } catch (importErr) {
             this.logger.error(
@@ -436,7 +460,9 @@ export class GenerativeModelProcessor extends WorkerHost {
               prediction.errorMessage ?? 'Replicate prediction failed',
           });
         }
-        throw new Error(prediction.errorMessage ?? 'Replicate prediction failed');
+        throw new Error(
+          prediction.errorMessage ?? 'Replicate prediction failed',
+        );
 
       case 'canceled':
         await this.appData.updateRequestStatus(requestId, 'cancelled');
@@ -603,7 +629,7 @@ export class GenerativeModelProcessor extends WorkerHost {
 
     await this.genQueue.add(
       JOB_REPLICATE_POLL_IMAGE,
-      {
+      tracedJobData({
         requestId,
         userId,
         predictionId,
@@ -619,7 +645,7 @@ export class GenerativeModelProcessor extends WorkerHost {
         preferredAssetId: job.data.preferredAssetId,
         surface: job.data.surface,
         actionKind: job.data.actionKind,
-      } satisfies ReplicatePollImageJob,
+      } satisfies ReplicatePollImageJob),
       {
         ...defaultJobOptions,
         jobId: bullJobId('replicate-image-poll', predictionId),
@@ -659,7 +685,10 @@ export class GenerativeModelProcessor extends WorkerHost {
 
     switch (prediction.status) {
       case 'running':
-        await this.genQueue.add(JOB_REPLICATE_POLL_IMAGE, job.data, {
+        await this.genQueue.add(
+          JOB_REPLICATE_POLL_IMAGE,
+          tracedJobData(job.data),
+          {
           ...defaultJobOptions,
           jobId: bullJobId(
             'replicate-image-poll',
@@ -678,13 +707,15 @@ export class GenerativeModelProcessor extends WorkerHost {
           ) ??
           prediction.outputUrls[0];
         if (!imageUrl) {
-          const msg =
-            'Replicate FLUX completed but returned no image URL';
+          const msg = 'Replicate FLUX completed but returned no image URL';
           if (job.data.activityId) {
-            await this.appData.updateCollaborationActivity(job.data.activityId, {
-              status: 'failed',
-              errorMessage: msg,
-            });
+            await this.appData.updateCollaborationActivity(
+              job.data.activityId,
+              {
+                status: 'failed',
+                errorMessage: msg,
+              },
+            );
           }
           await this.markFailed(requestId, new Error(msg));
           throw new Error(msg);
@@ -800,7 +831,7 @@ export class GenerativeModelProcessor extends WorkerHost {
     let revisedPrompt: string | undefined;
 
     for (let i = 0; i < variants.length; i++) {
-      const variant = variants[i]!;
+      const variant = variants[i];
       const baseId = ctx.preferredAssetId ?? `art-${requestId.slice(0, 12)}`;
       const assetId = i === 0 ? baseId : `${baseId}-v${i + 1}`;
 
@@ -1022,9 +1053,7 @@ export class GenerativeModelProcessor extends WorkerHost {
   private async isCancelled(requestId: string): Promise<boolean> {
     const row = await this.appData.getRequestStatus(requestId);
     if (row?.status === 'cancelled') {
-      this.logger.log(
-        JSON.stringify({ event: 'job_cancelled', requestId }),
-      );
+      this.logger.log(JSON.stringify({ event: 'job_cancelled', requestId }));
       return true;
     }
     return false;

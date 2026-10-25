@@ -63,14 +63,18 @@ export class AppDataService {
   async updateRequestStatus(
     requestId: string,
     status: RequestStatus,
-    extras?: Pick<RequestStatusRow, 'errorMessage' | 'outputRef' | 'resultJson'>,
+    extras?: Pick<
+      RequestStatusRow,
+      'errorMessage' | 'outputRef' | 'resultJson'
+    >,
   ): Promise<void> {
     this.logger.debug(`updateRequestStatus: ${requestId} → ${status}`);
     const patch: Record<string, unknown> = {
       status,
       updated_at: new Date().toISOString(),
     };
-    if (extras?.errorMessage !== undefined) patch.error_message = extras.errorMessage;
+    if (extras?.errorMessage !== undefined)
+      patch.error_message = extras.errorMessage;
     if (extras?.outputRef !== undefined) patch.output_ref = extras.outputRef;
     if (extras?.resultJson !== undefined) patch.result_json = extras.resultJson;
 
@@ -134,6 +138,25 @@ export class AppDataService {
           currency: row.currency,
           billable: row.billable,
           created_at: now,
+          document_id: row.documentId ?? null,
+          thread_id: row.threadId ?? null,
+          run_id: row.runId ?? null,
+          stage: row.stage ?? null,
+          provider_request_id: row.providerRequestId ?? null,
+          requested_model: row.requestedModel ?? null,
+          actual_model: row.actualModel ?? null,
+          model_preset_id: row.modelPresetId ?? null,
+          prompt_version: row.promptVersion ?? null,
+          schema_version: row.schemaVersion ?? null,
+          context_manifest_version: row.contextManifestVersion ?? null,
+          provider_cost_usd: row.providerCostUsd ?? null,
+          price_table_version: row.priceTableVersion ?? null,
+          latency_ms: row.latencyMs ?? null,
+          retry_count: row.retryCount ?? null,
+          repair_attempts: row.repairAttempts ?? null,
+          outcome: row.outcome ?? null,
+          error_category: row.errorCategory ?? null,
+          image_count: row.imageCount ?? null,
         },
         { onConflict: 'request_id', ignoreDuplicates: true },
       );
@@ -200,7 +223,9 @@ export class AppDataService {
         'user_profile extended columns missing — upserting legacy shape. ' +
           'Apply supabase/migrations/004_user_profile_extended.sql in Supabase.',
       );
-      const { error: legacyError } = await this.db().from('user_profile').upsert(legacyRow);
+      const { error: legacyError } = await this.db()
+        .from('user_profile')
+        .upsert(legacyRow);
       throwOnError('upsertUserProfile', legacyError);
       return;
     }
@@ -219,7 +244,9 @@ export class AppDataService {
     return data ? mapUserProfileRow(data) : null;
   }
 
-  async getUserProfilesByIds(userIds: string[]): Promise<Map<string, UserProfileRow>> {
+  async getUserProfilesByIds(
+    userIds: string[],
+  ): Promise<Map<string, UserProfileRow>> {
     const uniqueIds = [...new Set(userIds.filter(Boolean))];
     if (uniqueIds.length === 0) return new Map();
 
@@ -262,6 +289,7 @@ export class AppDataService {
   async createProject(row: {
     projectId: string;
     ownerUserId: string;
+    organizationId?: string | null;
     name: string;
     description?: string | null;
     workspaceMode: ProjectWorkspaceMode;
@@ -270,35 +298,41 @@ export class AppDataService {
   }): Promise<ProjectRow> {
     this.logger.debug(`createProject: ${row.projectId}`);
     const now = new Date().toISOString();
-    const { error: projectError } = await this.db().from('project').insert({
-      project_id: row.projectId,
-      owner_user_id: row.ownerUserId,
-      name: row.name.trim(),
-      description: row.description ?? null,
-      workspace_mode: row.workspaceMode,
-      status: 'active',
-      icon_asset_id: row.iconAssetId ?? null,
-      metadata_json: row.metadata ?? null,
-      created_at: now,
-      updated_at: now,
-    });
+    const { error: projectError } = await this.db()
+      .from('project')
+      .insert({
+        project_id: row.projectId,
+        owner_user_id: row.ownerUserId,
+        organization_id: row.organizationId ?? null,
+        name: row.name.trim(),
+        description: row.description ?? null,
+        workspace_mode: row.workspaceMode,
+        status: 'active',
+        icon_asset_id: row.iconAssetId ?? null,
+        metadata_json: row.metadata ?? null,
+        created_at: now,
+        updated_at: now,
+      });
     throwOnError('createProject', projectError);
 
-    const { error: memberError } = await this.db().from('project_member').upsert({
-      membership_id: membershipId(row.projectId, row.ownerUserId),
-      project_id: row.projectId,
-      user_id: row.ownerUserId,
-      role: 'owner',
-      status: 'active',
-      added_by_user_id: row.ownerUserId,
-      created_at: now,
-      updated_at: now,
-    });
+    const { error: memberError } = await this.db()
+      .from('project_member')
+      .upsert({
+        membership_id: membershipId(row.projectId, row.ownerUserId),
+        project_id: row.projectId,
+        user_id: row.ownerUserId,
+        role: 'owner',
+        status: 'active',
+        added_by_user_id: row.ownerUserId,
+        created_at: now,
+        updated_at: now,
+      });
     throwOnError('createProject.member', memberError);
 
     return {
       projectId: row.projectId,
       ownerUserId: row.ownerUserId,
+      organizationId: row.organizationId ?? null,
       name: row.name.trim(),
       description: row.description,
       workspaceMode: row.workspaceMode,
@@ -318,6 +352,7 @@ export class AppDataService {
       workspaceMode?: ProjectWorkspaceMode;
       iconAssetId?: string;
       metadata?: Record<string, unknown>;
+      organizationId?: string | null;
     },
   ): Promise<ProjectRow | null> {
     this.logger.debug(`updateProject: ${projectId}`);
@@ -329,10 +364,18 @@ export class AppDataService {
     };
     if (patch.name !== undefined) update.name = patch.name.trim();
     if (patch.description !== undefined) update.description = patch.description;
-    if (patch.workspaceMode !== undefined) update.workspace_mode = patch.workspaceMode;
-    if (patch.iconAssetId !== undefined) update.icon_asset_id = patch.iconAssetId;
+    if (patch.workspaceMode !== undefined)
+      update.workspace_mode = patch.workspaceMode;
+    if (patch.iconAssetId !== undefined)
+      update.icon_asset_id = patch.iconAssetId;
     if (patch.metadata !== undefined) {
-      update.metadata_json = { ...(existing.metadata ?? {}), ...patch.metadata };
+      update.metadata_json = {
+        ...(existing.metadata ?? {}),
+        ...patch.metadata,
+      };
+    }
+    if (patch.organizationId !== undefined) {
+      update.organization_id = patch.organizationId;
     }
 
     const { data, error } = await this.db()
@@ -372,9 +415,15 @@ export class AppDataService {
       .eq('status', 'active');
     throwOnError('listProjectsForUser.members', memberError);
 
-    const memberProjectIds = [...new Set((members ?? []).map((m) => m.project_id as string))];
+    const memberProjectIds = [
+      ...new Set((members ?? []).map((m) => m.project_id as string)),
+    ];
     const queries = [
-      this.db().from('project').select('*').eq('owner_user_id', userId).neq('status', 'deleted'),
+      this.db()
+        .from('project')
+        .select('*')
+        .eq('owner_user_id', userId)
+        .neq('status', 'deleted'),
     ];
     if (memberProjectIds.length > 0) {
       queries.push(
@@ -387,7 +436,8 @@ export class AppDataService {
     }
 
     const results = await Promise.all(queries);
-    for (const result of results) throwOnError('listProjectsForUser.projects', result.error);
+    for (const result of results)
+      throwOnError('listProjectsForUser.projects', result.error);
 
     const byId = new Map<string, ProjectRow>();
     for (const result of results) {
@@ -541,7 +591,9 @@ export class AppDataService {
     userId: string,
     newRole: ProjectMemberRole,
   ): Promise<ProjectMemberRow | null> {
-    this.logger.debug(`changeMemberRole: ${projectId} / ${userId} -> ${newRole}`);
+    this.logger.debug(
+      `changeMemberRole: ${projectId} / ${userId} -> ${newRole}`,
+    );
     const existing = await this.getProjectMembership(projectId, userId);
     if (!existing || existing.status === 'removed') return null;
 
@@ -651,7 +703,15 @@ export class AppDataService {
     assetId: string,
     status: ProjectAssetStatus,
     patch: Partial<
-      Pick<ProjectAssetRow, 'storageRef' | 'publicUrl' | 'sizeBytes' | 'checksum' | 'objectPath' | 'bucket'>
+      Pick<
+        ProjectAssetRow,
+        | 'storageRef'
+        | 'publicUrl'
+        | 'sizeBytes'
+        | 'checksum'
+        | 'objectPath'
+        | 'bucket'
+      >
     > = {},
   ): Promise<ProjectAssetRow | null> {
     this.logger.debug(`updateProjectAssetStatus: ${assetId} -> ${status}`);
@@ -787,7 +847,8 @@ export class AppDataService {
       updated_at: new Date().toISOString(),
     };
     if (patch.status !== undefined) update.status = patch.status;
-    if (patch.workerJobId !== undefined) update.worker_job_id = patch.workerJobId;
+    if (patch.workerJobId !== undefined)
+      update.worker_job_id = patch.workerJobId;
     if (patch.errorMessage !== undefined) {
       update.error_message = patch.errorMessage;
     }
@@ -876,7 +937,8 @@ export class AppDataService {
       updated_at: new Date().toISOString(),
     };
     if (patch.status !== undefined) update.status = patch.status;
-    if (patch.workerJobId !== undefined) update.worker_job_id = patch.workerJobId;
+    if (patch.workerJobId !== undefined)
+      update.worker_job_id = patch.workerJobId;
     if (patch.errorMessage !== undefined) {
       update.error_message = patch.errorMessage;
     }
@@ -908,7 +970,10 @@ export class AppDataService {
     this.logger.debug(`createGenRequest: ${_row.requestId}`);
   }
 
-  async updateGenRequestOutput(requestId: string, outputRef: string): Promise<void> {
+  async updateGenRequestOutput(
+    requestId: string,
+    outputRef: string,
+  ): Promise<void> {
     this.logger.debug(`updateGenRequestOutput: ${requestId}`);
     const { error } = await this.db()
       .from('request_status')
@@ -934,18 +999,20 @@ export class AppDataService {
     storageRef: string;
   }): Promise<void> {
     this.logger.debug(`createExternalAsset: ${row.assetId} (${row.provider})`);
-    const { error } = await this.db().from('external_asset').insert({
-      asset_id: row.assetId,
-      user_id: row.userId,
-      request_id: row.requestId,
-      provider: row.provider,
-      asset_type: row.assetType,
-      mime_type: row.mimeType,
-      size_bytes: row.sizeBytes ?? null,
-      source_url: row.sourceUrl,
-      storage_ref: row.storageRef,
-      created_at: new Date().toISOString(),
-    });
+    const { error } = await this.db()
+      .from('external_asset')
+      .insert({
+        asset_id: row.assetId,
+        user_id: row.userId,
+        request_id: row.requestId,
+        provider: row.provider,
+        asset_type: row.assetType,
+        mime_type: row.mimeType,
+        size_bytes: row.sizeBytes ?? null,
+        source_url: row.sourceUrl,
+        storage_ref: row.storageRef,
+        created_at: new Date().toISOString(),
+      });
     throwOnError('createExternalAsset', error);
   }
 
@@ -960,15 +1027,17 @@ export class AppDataService {
     errorMessage?: string;
   }): Promise<void> {
     this.logger.debug(`upsertProviderSync: ${row.userId} / ${row.provider}`);
-    const { error } = await this.db().from('provider_sync').upsert({
-      sync_id: `${row.userId}:${row.provider}`,
-      user_id: row.userId,
-      provider: row.provider,
-      last_synced_at: row.lastSyncedAt.toISOString(),
-      item_count: row.itemCount ?? null,
-      metadata_json: row.metadata ?? null,
-      error_message: row.errorMessage ?? null,
-    });
+    const { error } = await this.db()
+      .from('provider_sync')
+      .upsert({
+        sync_id: `${row.userId}:${row.provider}`,
+        user_id: row.userId,
+        provider: row.provider,
+        last_synced_at: row.lastSyncedAt.toISOString(),
+        item_count: row.itemCount ?? null,
+        metadata_json: row.metadata ?? null,
+        error_message: row.errorMessage ?? null,
+      });
     throwOnError('upsertProviderSync', error);
   }
 
@@ -991,7 +1060,8 @@ export class AppDataService {
     return {
       lastSyncedAt: new Date(data.last_synced_at as string),
       itemCount: data.item_count != null ? Number(data.item_count) : undefined,
-      metadata: (data.metadata_json as Record<string, unknown> | null) ?? undefined,
+      metadata:
+        (data.metadata_json as Record<string, unknown> | null) ?? undefined,
     };
   }
 
@@ -1009,17 +1079,19 @@ export class AppDataService {
     metadata?: Record<string, unknown>;
   }): Promise<void> {
     this.logger.debug(`createImportedContent: ${row.contentId}`);
-    const { error } = await this.db().from('imported_content').insert({
-      content_id: row.contentId,
-      user_id: row.userId,
-      provider: row.provider,
-      external_id: row.externalId,
-      title: row.title,
-      content_type: row.contentType,
-      imported_at: row.importedAt.toISOString(),
-      storage_ref: row.storageRef ?? null,
-      metadata_json: row.metadata ?? null,
-    });
+    const { error } = await this.db()
+      .from('imported_content')
+      .insert({
+        content_id: row.contentId,
+        user_id: row.userId,
+        provider: row.provider,
+        external_id: row.externalId,
+        title: row.title,
+        content_type: row.contentType,
+        imported_at: row.importedAt.toISOString(),
+        storage_ref: row.storageRef ?? null,
+        metadata_json: row.metadata ?? null,
+      });
     throwOnError('createImportedContent', error);
   }
 
@@ -1052,7 +1124,9 @@ export class AppDataService {
     expiresAt: Date;
     maxUses?: number;
   }): Promise<ShareLinkRow> {
-    this.logger.debug(`createShareLink: ${row.linkId} for project ${row.projectId}`);
+    this.logger.debug(
+      `createShareLink: ${row.linkId} for project ${row.projectId}`,
+    );
     const now = new Date().toISOString();
     const { data, error } = await this.db()
       .from('share_link')
@@ -1131,13 +1205,16 @@ export class AppDataService {
     if (!link) return null;
     if (link.revokedAt) return null;
     if (link.expiresAt <= new Date()) return null;
-    if (link.maxUses !== undefined && link.useCount >= link.maxUses) return null;
+    if (link.maxUses !== undefined && link.useCount >= link.maxUses)
+      return null;
 
     const newUseCount = link.useCount + 1;
     const isSingleUse = link.maxUses !== undefined && link.maxUses === 1;
     const linkPatch: Record<string, unknown> = {
       use_count: newUseCount,
-      consumed_at: isSingleUse ? new Date().toISOString() : link.consumedAt?.toISOString() ?? null,
+      consumed_at: isSingleUse
+        ? new Date().toISOString()
+        : (link.consumedAt?.toISOString() ?? null),
     };
 
     const { data: updatedLink, error: linkError } = await this.db()
@@ -1173,7 +1250,9 @@ export class AppDataService {
     inviteCodeHash?: string;
     expiresAt?: Date;
   }): Promise<ProjectInviteRow> {
-    this.logger.debug(`createProjectInvite: ${row.inviteId} (${row.inviteType}) for project ${row.projectId}`);
+    this.logger.debug(
+      `createProjectInvite: ${row.inviteId} (${row.inviteType}) for project ${row.projectId}`,
+    );
     const now = new Date().toISOString();
     const { data, error } = await this.db()
       .from('project_invite')
@@ -1197,7 +1276,9 @@ export class AppDataService {
     return mapProjectInviteRow(data);
   }
 
-  async getProjectInviteById(inviteId: string): Promise<ProjectInviteRow | null> {
+  async getProjectInviteById(
+    inviteId: string,
+  ): Promise<ProjectInviteRow | null> {
     this.logger.debug(`getProjectInviteById: ${inviteId}`);
     const { data, error } = await this.db()
       .from('project_invite')
@@ -1208,7 +1289,9 @@ export class AppDataService {
     return data ? mapProjectInviteRow(data) : null;
   }
 
-  async getProjectInviteByCodeHash(codeHash: string): Promise<ProjectInviteRow | null> {
+  async getProjectInviteByCodeHash(
+    codeHash: string,
+  ): Promise<ProjectInviteRow | null> {
     this.logger.debug('getProjectInviteByCodeHash');
     const { data, error } = await this.db()
       .from('project_invite')
@@ -1238,7 +1321,9 @@ export class AppDataService {
     return (data ?? []).map(mapProjectInviteRow);
   }
 
-  async revokeProjectInvite(inviteId: string): Promise<ProjectInviteRow | null> {
+  async revokeProjectInvite(
+    inviteId: string,
+  ): Promise<ProjectInviteRow | null> {
     this.logger.debug(`revokeProjectInvite: ${inviteId}`);
     const now = new Date().toISOString();
     const { data, error } = await this.db()
@@ -1326,7 +1411,9 @@ export class AppDataService {
     return mapCollaborationDocumentRow(data);
   }
 
-  async getCollaborationDocumentByKey(documentKey: string): Promise<CollaborationDocumentRow | null> {
+  async getCollaborationDocumentByKey(
+    documentKey: string,
+  ): Promise<CollaborationDocumentRow | null> {
     const { data, error } = await this.db()
       .from('collaboration_document')
       .select('*')
@@ -1352,7 +1439,10 @@ export class AppDataService {
 
   async listCollaborationDocuments(
     projectId: string,
-    opts: { documentType?: CollaborationDocumentType; includeArchived?: boolean } = {},
+    opts: {
+      documentType?: CollaborationDocumentType;
+      includeArchived?: boolean;
+    } = {},
   ): Promise<CollaborationDocumentRow[]> {
     let query = this.db()
       .from('collaboration_document')
@@ -1379,12 +1469,17 @@ export class AppDataService {
     },
   ): Promise<CollaborationDocumentRow | null> {
     this.logger.debug(`updateCollaborationDocument: ${documentKey}`);
-    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (patch.title !== undefined) update.title = patch.title.trim() || 'Untitled';
-    if (patch.archived !== undefined) update.archived_at = patch.archived ? new Date().toISOString() : null;
+    const update: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (patch.title !== undefined)
+      update.title = patch.title.trim() || 'Untitled';
+    if (patch.archived !== undefined)
+      update.archived_at = patch.archived ? new Date().toISOString() : null;
     if (patch.metadata !== undefined) update.metadata_json = patch.metadata;
     if (patch.version !== undefined) update.version = patch.version;
-    if (patch.updatedByUserId !== undefined) update.updated_by_user_id = patch.updatedByUserId;
+    if (patch.updatedByUserId !== undefined)
+      update.updated_by_user_id = patch.updatedByUserId;
 
     const { data, error } = await this.db()
       .from('collaboration_document')
@@ -1410,13 +1505,74 @@ export class AppDataService {
     return (data ?? []).map(mapCollaborationSnapshotRow);
   }
 
-  async getCollaborationSnapshotById(snapshotId: string): Promise<CollaborationSnapshotRow | null> {
+  async getCollaborationSnapshotById(
+    snapshotId: string,
+  ): Promise<CollaborationSnapshotRow | null> {
     const { data, error } = await this.db()
       .from('collaboration_snapshot')
       .select('*')
       .eq('snapshot_id', snapshotId)
       .maybeSingle();
     throwOnError('getCollaborationSnapshotById', error);
+    return data ? mapCollaborationSnapshotRow(data) : null;
+  }
+
+  async createCollaborationSnapshot(input: {
+    snapshotId: string;
+    documentKey: string;
+    documentId: string;
+    storageRef: string;
+    stateVector?: string | null;
+    byteLength?: number;
+    createdByUserId?: string;
+    name?: string | null;
+    createdAt?: Date;
+  }): Promise<CollaborationSnapshotRow> {
+    const { data, error } = await this.db()
+      .from('collaboration_snapshot')
+      .insert({
+        snapshot_id: input.snapshotId,
+        document_key: input.documentKey,
+        document_id: input.documentId,
+        state_vector: input.stateVector ?? null,
+        storage_ref: input.storageRef,
+        byte_length: input.byteLength ?? null,
+        created_by_user_id: input.createdByUserId ?? null,
+        created_at: (input.createdAt ?? new Date()).toISOString(),
+        name: input.name ?? null,
+      })
+      .select('*')
+      .single();
+    throwOnError('createCollaborationSnapshot', error);
+    return mapCollaborationSnapshotRow(data as Record<string, unknown>);
+  }
+
+  async updateCollaborationSnapshotPreview(input: {
+    snapshotId: string;
+    previewStorageRef?: string | null;
+    previewContentType?: string | null;
+    previewByteLength?: number | null;
+  }): Promise<CollaborationSnapshotRow | null> {
+    const patch: Record<string, unknown> = {};
+    if (input.previewStorageRef !== undefined) {
+      patch.preview_storage_ref = input.previewStorageRef;
+    }
+    if (input.previewContentType !== undefined) {
+      patch.preview_content_type = input.previewContentType;
+    }
+    if (input.previewByteLength !== undefined) {
+      patch.preview_byte_length = input.previewByteLength;
+    }
+    if (Object.keys(patch).length === 0) {
+      return this.getCollaborationSnapshotById(input.snapshotId);
+    }
+    const { data, error } = await this.db()
+      .from('collaboration_snapshot')
+      .update(patch)
+      .eq('snapshot_id', input.snapshotId)
+      .select('*')
+      .maybeSingle();
+    throwOnError('updateCollaborationSnapshotPreview', error);
     return data ? mapCollaborationSnapshotRow(data) : null;
   }
 
@@ -1446,8 +1602,7 @@ export class AppDataService {
         body: row.body,
         status: 'open',
         anchor_json: row.anchor ?? null,
-        anchor_id: (row.anchor as { objectId?: string; blockId?: string; componentId?: string } | undefined)
-          ?.objectId ?? (row.anchor as { blockId?: string } | undefined)?.blockId ?? null,
+        anchor_id: row.anchor?.objectId ?? row.anchor?.blockId ?? null,
         anchor_type: row.documentId ? 'document' : row.assetId ? 'asset' : null,
         created_at: now,
         updated_at: now,
@@ -1458,7 +1613,9 @@ export class AppDataService {
     return mapProjectCommentRow(data);
   }
 
-  async getProjectComment(commentId: string): Promise<ProjectCommentRow | null> {
+  async getProjectComment(
+    commentId: string,
+  ): Promise<ProjectCommentRow | null> {
     const { data, error } = await this.db()
       .from('project_comment')
       .select('*')
@@ -1548,7 +1705,9 @@ export class AppDataService {
     runId?: string;
     actionKind?: string;
   }): Promise<CollaborationActivityRow> {
-    this.logger.debug(`createCollaborationActivity: ${row.activityId} (${row.activityType})`);
+    this.logger.debug(
+      `createCollaborationActivity: ${row.activityId} (${row.activityType})`,
+    );
     const now = new Date().toISOString();
     const { data, error } = await this.db()
       .from('collaboration_activity')
@@ -1592,7 +1751,9 @@ export class AppDataService {
     return data ? mapCollaborationActivityRow(data) : null;
   }
 
-  async getCollaborationActivity(activityId: string): Promise<CollaborationActivityRow | null> {
+  async getCollaborationActivity(
+    activityId: string,
+  ): Promise<CollaborationActivityRow | null> {
     const { data, error } = await this.db()
       .from('collaboration_activity')
       .select('*')
@@ -1611,10 +1772,13 @@ export class AppDataService {
       reconciled?: boolean;
     },
   ): Promise<CollaborationActivityRow | null> {
-    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const update: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
     if (patch.status !== undefined) update.status = patch.status;
     if (patch.result !== undefined) update.result_json = patch.result;
-    if (patch.errorMessage !== undefined) update.error_message = patch.errorMessage;
+    if (patch.errorMessage !== undefined)
+      update.error_message = patch.errorMessage;
     if (patch.reconciled !== undefined) {
       update.reconciled_at = patch.reconciled ? new Date().toISOString() : null;
     }
@@ -1629,7 +1793,9 @@ export class AppDataService {
     return data ? mapCollaborationActivityRow(data) : null;
   }
 
-  async listActiveCollaborationActivity(projectId: string): Promise<CollaborationActivityRow[]> {
+  async listActiveCollaborationActivity(
+    projectId: string,
+  ): Promise<CollaborationActivityRow[]> {
     const { data, error } = await this.db()
       .from('collaboration_activity')
       .select('*')
@@ -1683,7 +1849,9 @@ export class AppDataService {
     refreshToken?: string;
     expiresAt?: Date;
   }): Promise<void> {
-    this.logger.debug(`upsertProviderCredential: ${row.userId} / ${row.provider}`);
+    this.logger.debug(
+      `upsertProviderCredential: ${row.userId} / ${row.provider}`,
+    );
     const now = new Date().toISOString();
     const { error } = await this.db()
       .from('provider_credential')
@@ -1749,16 +1917,23 @@ function membershipId(projectId: string, userId: string): string {
 }
 
 function isTerminalStatus(status: RequestStatus | undefined): boolean {
-  return status === 'completed' || status === 'failed' || status === 'cancelled';
+  return (
+    status === 'completed' || status === 'failed' || status === 'cancelled'
+  );
 }
 
-function throwOnError(context: string, error: { message: string } | null): void {
+function throwOnError(
+  context: string,
+  error: { message: string } | null,
+): void {
   if (error) {
     throw new Error(`${context}: ${error.message}`);
   }
 }
 
-function isMissingExtendedUserProfileColumns(error: { message: string }): boolean {
+function isMissingExtendedUserProfileColumns(error: {
+  message: string;
+}): boolean {
   return (
     error.message.includes('schema cache') &&
     (error.message.includes('on_demand_json') ||
@@ -1781,7 +1956,8 @@ function mapRequestStatusRow(row: Record<string, unknown>): RequestStatusRow {
     status: row.status as RequestStatus,
     errorMessage: (row.error_message as string | null) ?? undefined,
     outputRef: (row.output_ref as string | null) ?? undefined,
-    resultJson: (row.result_json as Record<string, unknown> | null) ?? undefined,
+    resultJson:
+      (row.result_json as Record<string, unknown> | null) ?? undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
@@ -1805,11 +1981,37 @@ function mapGenerationUsageEventRow(
     currency: (row.currency as string) ?? 'USD',
     billable: Boolean(row.billable),
     createdAt: new Date(row.created_at as string),
+    documentId: (row.document_id as string | null) ?? undefined,
+    threadId: (row.thread_id as string | null) ?? undefined,
+    runId: (row.run_id as string | null) ?? undefined,
+    stage: (row.stage as string | null) ?? undefined,
+    providerRequestId: (row.provider_request_id as string | null) ?? undefined,
+    requestedModel: (row.requested_model as string | null) ?? undefined,
+    actualModel: (row.actual_model as string | null) ?? undefined,
+    modelPresetId: (row.model_preset_id as string | null) ?? undefined,
+    promptVersion: (row.prompt_version as string | null) ?? undefined,
+    schemaVersion: (row.schema_version as string | null) ?? undefined,
+    contextManifestVersion:
+      (row.context_manifest_version as string | null) ?? undefined,
+    providerCostUsd:
+      row.provider_cost_usd == null
+        ? undefined
+        : Number(row.provider_cost_usd),
+    priceTableVersion: (row.price_table_version as string | null) ?? undefined,
+    latencyMs: row.latency_ms == null ? undefined : Number(row.latency_ms),
+    retryCount: row.retry_count == null ? undefined : Number(row.retry_count),
+    repairAttempts:
+      row.repair_attempts == null ? undefined : Number(row.repair_attempts),
+    outcome: (row.outcome as string | null) ?? undefined,
+    errorCategory: (row.error_category as string | null) ?? undefined,
+    imageCount: row.image_count == null ? undefined : Number(row.image_count),
   };
 }
 
 function mapUserProfileRow(row: Record<string, unknown>): UserProfileRow {
-  const onDemandRaw = row.on_demand_json as { monthlyCap?: number | null } | null;
+  const onDemandRaw = row.on_demand_json as {
+    monthlyCap?: number | null;
+  } | null;
   return {
     userId: row.user_id as string,
     displayName: (row.display_name as string | null) ?? undefined,
@@ -1821,7 +2023,9 @@ function mapUserProfileRow(row: Record<string, unknown>): UserProfileRow {
     onDemand: {
       monthlyCap: onDemandRaw?.monthlyCap ?? null,
     },
-    createdAt: new Date((row.created_at as string) ?? (row.updated_at as string)),
+    createdAt: new Date(
+      (row.created_at as string) ?? (row.updated_at as string),
+    ),
     updatedAt: new Date(row.updated_at as string),
   };
 }
@@ -1830,12 +2034,14 @@ function mapProjectRow(row: Record<string, unknown>): ProjectRow {
   return {
     projectId: row.project_id as string,
     ownerUserId: row.owner_user_id as string,
+    organizationId: (row.organization_id as string | null) ?? null,
     name: row.name as string,
     description: (row.description as string | null) ?? undefined,
     workspaceMode: row.workspace_mode as ProjectWorkspaceMode,
     status: row.status as ProjectStatus,
     iconAssetId: (row.icon_asset_id as string | null) ?? undefined,
-    metadata: (row.metadata_json as Record<string, unknown> | null) ?? undefined,
+    metadata:
+      (row.metadata_json as Record<string, unknown> | null) ?? undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
@@ -1876,7 +2082,8 @@ function mapProjectAssetRow(row: Record<string, unknown>): ProjectAssetRow {
     sourceProvider: (row.source_provider as string | null) ?? undefined,
     requestId: (row.request_id as string | null) ?? undefined,
     promptHash: (row.prompt_hash as string | null) ?? undefined,
-    metadata: (row.metadata_json as Record<string, unknown> | null) ?? undefined,
+    metadata:
+      (row.metadata_json as Record<string, unknown> | null) ?? undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
@@ -1939,12 +2146,16 @@ function mapShareLinkRow(row: Record<string, unknown>): ShareLinkRow {
     maxUses: row.max_uses != null ? Number(row.max_uses) : undefined,
     useCount: Number(row.use_count),
     revokedAt: row.revoked_at ? new Date(row.revoked_at as string) : undefined,
-    consumedAt: row.consumed_at ? new Date(row.consumed_at as string) : undefined,
+    consumedAt: row.consumed_at
+      ? new Date(row.consumed_at as string)
+      : undefined,
     createdAt: new Date(row.created_at as string),
   };
 }
 
-function mapCollaborationDocumentRow(row: Record<string, unknown>): CollaborationDocumentRow {
+function mapCollaborationDocumentRow(
+  row: Record<string, unknown>,
+): CollaborationDocumentRow {
   return {
     documentKey: row.document_key as string,
     documentId: row.document_id as string,
@@ -1955,14 +2166,19 @@ function mapCollaborationDocumentRow(row: Record<string, unknown>): Collaboratio
     version: Number(row.version ?? 0),
     createdByUserId: (row.created_by_user_id as string | null) ?? undefined,
     updatedByUserId: (row.updated_by_user_id as string | null) ?? undefined,
-    archivedAt: row.archived_at ? new Date(row.archived_at as string) : undefined,
-    metadata: (row.metadata_json as Record<string, unknown> | null) ?? undefined,
+    archivedAt: row.archived_at
+      ? new Date(row.archived_at as string)
+      : undefined,
+    metadata:
+      (row.metadata_json as Record<string, unknown> | null) ?? undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
 }
 
-function mapCollaborationSnapshotRow(row: Record<string, unknown>): CollaborationSnapshotRow {
+function mapCollaborationSnapshotRow(
+  row: Record<string, unknown>,
+): CollaborationSnapshotRow {
   return {
     snapshotId: row.snapshot_id as string,
     documentKey: row.document_key as string,
@@ -1972,6 +2188,13 @@ function mapCollaborationSnapshotRow(row: Record<string, unknown>): Collaboratio
     byteLength: row.byte_length != null ? Number(row.byte_length) : undefined,
     createdByUserId: (row.created_by_user_id as string | null) ?? undefined,
     createdAt: new Date(row.created_at as string),
+    name: (row.name as string | null) ?? null,
+    previewStorageRef: (row.preview_storage_ref as string | null) ?? null,
+    previewContentType: (row.preview_content_type as string | null) ?? null,
+    previewByteLength:
+      row.preview_byte_length != null
+        ? Number(row.preview_byte_length)
+        : null,
   };
 }
 
@@ -1984,21 +2207,28 @@ function mapProjectCommentRow(row: Record<string, unknown>): ProjectCommentRow {
     authorUserId: row.author_user_id as string,
     parentCommentId: (row.parent_comment_id as string | null) ?? undefined,
     body: row.body as string,
-    status: (row.status as ProjectCommentRow['status']) ?? (row.resolved ? 'resolved' : 'open'),
+    status:
+      (row.status as ProjectCommentRow['status']) ??
+      (row.resolved ? 'resolved' : 'open'),
     anchor: (row.anchor_json as Record<string, unknown> | null) ?? undefined,
     resolvedByUserId: (row.resolved_by_user_id as string | null) ?? undefined,
-    resolvedAt: row.resolved_at ? new Date(row.resolved_at as string) : undefined,
+    resolvedAt: row.resolved_at
+      ? new Date(row.resolved_at as string)
+      : undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
   };
 }
 
-function mapCollaborationActivityRow(row: Record<string, unknown>): CollaborationActivityRow {
+function mapCollaborationActivityRow(
+  row: Record<string, unknown>,
+): CollaborationActivityRow {
   return {
     activityId: row.activity_id as string,
     projectId: row.project_id as string,
     documentId: (row.document_id as string | null) ?? undefined,
-    documentType: (row.document_type as CollaborationDocumentType | null) ?? undefined,
+    documentType:
+      (row.document_type as CollaborationDocumentType | null) ?? undefined,
     requestId: (row.request_id as string | null) ?? undefined,
     actorUserId: row.actor_user_id as string,
     activityType: row.activity_type as CollaborationActivityType,
@@ -2006,7 +2236,9 @@ function mapCollaborationActivityRow(row: Record<string, unknown>): Collaboratio
     target: (row.target_json as Record<string, unknown> | null) ?? undefined,
     result: (row.result_json as Record<string, unknown> | null) ?? undefined,
     errorMessage: (row.error_message as string | null) ?? undefined,
-    reconciledAt: row.reconciled_at ? new Date(row.reconciled_at as string) : undefined,
+    reconciledAt: row.reconciled_at
+      ? new Date(row.reconciled_at as string)
+      : undefined,
     workflowId: (row.workflow_id as string | null) ?? undefined,
     nodeId: (row.node_id as string | null) ?? undefined,
     runId: (row.run_id as string | null) ?? undefined,
@@ -2028,7 +2260,9 @@ function mapProjectInviteRow(row: Record<string, unknown>): ProjectInviteRow {
     inviteCodeHash: (row.invite_code_hash as string | null) ?? undefined,
     status: row.status as InviteStatus,
     expiresAt: row.expires_at ? new Date(row.expires_at as string) : undefined,
-    acceptedAt: row.accepted_at ? new Date(row.accepted_at as string) : undefined,
+    acceptedAt: row.accepted_at
+      ? new Date(row.accepted_at as string)
+      : undefined,
     revokedAt: row.revoked_at ? new Date(row.revoked_at as string) : undefined,
     acceptedByUserId: (row.accepted_by_user_id as string | null) ?? undefined,
     createdAt: new Date(row.created_at as string),

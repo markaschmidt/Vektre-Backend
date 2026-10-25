@@ -1,0 +1,28 @@
+---
+description: Repo topology - what vektre-web is (and isn't) and where the real frontend lives
+alwaysApply: true
+---
+
+# Project Topology
+
+- `vektre` (this repo): the NestJS backend API + the Hocuspocus/Yjs
+  collaboration server (`src/collaboration-yjs/yjs-server.ts`).
+- `vektre-web` (sibling repo, `../vektre-web`): the marketing/venture
+  **website**. It is NOT the product frontend/client app.
+- The actual product frontend (the desktop app end users run) lives on the
+  user's desktop machine, outside this VPS entirely. It is not present in
+  this workspace, in `vektre-web`, or anywhere on this VPS — there is no
+  frontend source code accessible here to read or edit.
+
+## Implications
+
+- Never refer to `vektre-web` as "the frontend" or assume UI/collaboration
+  client wiring questions can be answered by reading `vektre-web` source.
+- When diagnosing client-side issues (e.g. collaboration/WebSocket bugs,
+  Yjs provider usage), the relevant client code is on the user's desktop
+  and not inspectable here — reason from the backend's API contracts
+  (REST responses, `collabWsUrl`, env vars) and ask the user for
+  desktop-app-side logs/behavior instead of searching this VPS for it.
+- Backend changes that affect the frontend (new endpoints, response shape
+  changes, env var requirements) should be called out explicitly since
+  there's no way to verify frontend integration from this workspace.

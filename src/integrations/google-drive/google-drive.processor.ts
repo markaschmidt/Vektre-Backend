@@ -30,7 +30,11 @@ export class GoogleDriveProcessor extends WorkerHost {
     job: Job<GoogleDriveSyncJob | GoogleDriveImportJob>,
   ): Promise<void> {
     this.logger.log(
-      JSON.stringify({ event: 'drive_job_start', jobId: job.id, jobName: job.name }),
+      JSON.stringify({
+        event: 'drive_job_start',
+        jobId: job.id,
+        jobName: job.name,
+      }),
     );
 
     switch (job.name) {
@@ -39,7 +43,7 @@ export class GoogleDriveProcessor extends WorkerHost {
       case 'google-drive-import':
         return this.handleImport(job as Job<GoogleDriveImportJob>);
       default:
-        throw new Error(`Unknown Google Drive job: ${(job as Job).name as string}`);
+        throw new Error(`Unknown Google Drive job: ${(job as Job).name}`);
     }
   }
 
@@ -97,7 +101,11 @@ export class GoogleDriveProcessor extends WorkerHost {
     await this.appData.updateRequestStatus(requestId, 'completed');
 
     this.logger.log(
-      JSON.stringify({ event: 'google_drive_sync_complete', userId, itemCount }),
+      JSON.stringify({
+        event: 'google_drive_sync_complete',
+        userId,
+        itemCount,
+      }),
     );
   }
 
@@ -144,7 +152,6 @@ export class GoogleDriveProcessor extends WorkerHost {
     const assetId = randomUUID();
     const storageRef = `imports/google-drive/${userId}/${assetId}`;
 
-    // In production: write buffer to SpacetimeDB project_asset_blob chunks.
     this.logger.debug(
       JSON.stringify({
         event: 'google_drive_import_buffer_ready',
@@ -182,7 +189,12 @@ export class GoogleDriveProcessor extends WorkerHost {
     });
 
     this.logger.log(
-      JSON.stringify({ event: 'google_drive_import_complete', userId, fileId, assetId }),
+      JSON.stringify({
+        event: 'google_drive_import_complete',
+        userId,
+        fileId,
+        assetId,
+      }),
     );
   }
 }

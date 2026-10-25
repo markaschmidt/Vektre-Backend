@@ -11,7 +11,9 @@ import type { CommentNotificationJob } from './models/comment-notification-job.m
 
 @Injectable()
 export class CollaborationCommentNotificationsService {
-  private readonly logger = new Logger(CollaborationCommentNotificationsService.name);
+  private readonly logger = new Logger(
+    CollaborationCommentNotificationsService.name,
+  );
 
   constructor(
     @InjectQueue(COLLAB_OPS_QUEUE)

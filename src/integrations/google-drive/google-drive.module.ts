@@ -17,7 +17,11 @@ import { ProjectsModule } from '../../projects/projects.module.js';
     ConfigModule,
   ],
   controllers: [GoogleDriveController],
-  providers: [GoogleDriveService, GoogleDriveTokenService, GoogleDriveProcessor],
+  providers: [
+    GoogleDriveService,
+    GoogleDriveTokenService,
+    GoogleDriveProcessor,
+  ],
   exports: [GoogleDriveService],
 })
 export class GoogleDriveModule {}

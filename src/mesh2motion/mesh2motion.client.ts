@@ -117,7 +117,10 @@ export class Mesh2MotionClient {
     formData.append('options', JSON.stringify(options));
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), cfg.requestTimeoutMs);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      cfg.requestTimeoutMs,
+    );
 
     let response: Response;
     try {
@@ -134,7 +137,10 @@ export class Mesh2MotionClient {
           `Animator create timed out after ${cfg.requestTimeoutMs}ms`,
         );
       }
-      throw ProviderError.retryable('animator', `Network error: ${String(err)}`);
+      throw ProviderError.retryable(
+        'animator',
+        `Network error: ${String(err)}`,
+      );
     } finally {
       clearTimeout(timeoutId);
     }

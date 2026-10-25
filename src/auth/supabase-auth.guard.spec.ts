@@ -64,10 +64,17 @@ describe('SupabaseAuthGuard', () => {
   });
 
   it('attaches the verified user to the request', async () => {
-    const fakeUser = { id: 'user-1', email: 'a@b.com', role: undefined, claims: {} };
+    const fakeUser = {
+      id: 'user-1',
+      email: 'a@b.com',
+      role: undefined,
+      claims: {},
+    };
     mockSupabase.verifyToken.mockResolvedValue(fakeUser);
 
-    const req: Record<string, unknown> = { headers: { authorization: 'Bearer tok' } };
+    const req: Record<string, unknown> = {
+      headers: { authorization: 'Bearer tok' },
+    };
     const ctx = {
       getHandler: () => ({}),
       getClass: () => ({}),

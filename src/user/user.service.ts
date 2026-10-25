@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
@@ -6,23 +11,24 @@ import { USER_OPS_QUEUE } from '../queues/queue-names.js';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { bullJobId } from '../queues/bull-job-id.js';
 import { defaultJobOptions } from '../queues/job-options.js';
-import type { UserOnboardingPreferences } from '../integrations/app-data.types.js';
+import {
+  USER_PLANS,
+  type UserOnboardingPreferences,
+  type UserPlan,
+} from '../integrations/app-data.types.js';
 import type { UpdateProfileDto } from './dto/update-profile.dto.js';
 import type {
   SyncProviderDocumentsJob,
   RecalculatePreferencesJob,
 } from './models/user-op-job.model.js';
-import {
-  buildDisplayName,
-  mergeProfilePatch,
-} from './user-profile.helpers.js';
+import { buildDisplayName, mergeProfilePatch } from './user-profile.helpers.js';
 import {
   toUserProfileApiResponse,
   type UserProfileApiResponse,
 } from './models/user-profile-api.model.js';
+import { BillingService } from '../billing/billing.service.js';
 
-const PERSONAL_OR_INDIE_PLANS = new Set(['indie_free', 'indie_pro']);
-const ENTERPRISE_PLANS = new Set(['corp_starter', 'corp_team', 'corp_enterprise']);
+const PLAN_SET = new Set<string>(USER_PLANS);
 
 @Injectable()
 export class UserService {
@@ -32,6 +38,7 @@ export class UserService {
     @InjectQueue(USER_OPS_QUEUE)
     private readonly userOpsQueue: Queue,
     private readonly appData: AppDataService,
+    private readonly billing: BillingService,
   ) {}
 
   /**
@@ -55,7 +62,10 @@ export class UserService {
     dto: UpdateProfileDto,
   ): Promise<UserProfileApiResponse> {
     const existing = await this.appData.getUserProfile(userId);
-    const prefs = this.normalizePreferences(dto.preferences as UserOnboardingPreferences | undefined);
+    const wasOnboarded = existing?.preferences?.onboardingCompleted === true;
+    const prefs = this.normalizePreferences(
+      dto.preferences as UserOnboardingPreferences | undefined,
+    );
     if (
       prefs?.onboardingCompleted === true &&
       dto.plan !== undefined &&
@@ -81,8 +91,23 @@ export class UserService {
 
     await this.appData.upsertUserProfile(profile);
 
-    if (prefs?.onboardingCompleted === true) {
+    if (prefs?.onboardingCompleted === true && !wasOnboarded) {
       this.logger.log(`Onboarding completed for user ${userId}`);
+      const plan = (prefs.selectedPlan ??
+        dto.plan ??
+        profile.plan) as UserPlan | null;
+      if (plan && PLAN_SET.has(plan)) {
+        try {
+          await this.billing.startOnboardingEntitlement(userId, plan);
+        } catch (err) {
+          this.logger.error(
+            `Failed to start billing entitlement for ${userId}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          throw err;
+        }
+      }
     }
 
     if (prefs && Object.keys(prefs).length > 0) {
@@ -144,8 +169,14 @@ export class UserService {
       firstName: normalizeText(prefs.firstName),
       lastName: normalizeText(prefs.lastName),
       role: normalizeText(prefs.role),
-      company: normalizeOptionalText(prefs.company),
+      company: normalizeOptionalText(
+        prefs.company ??
+          (typeof prefs.organizationName === 'string'
+            ? prefs.organizationName
+            : undefined),
+      ),
     };
+    delete normalized.organizationName;
 
     if (normalized.onboardingCompleted === true) {
       this.assertValidOnboardingPreferences(normalized);
@@ -175,18 +206,9 @@ export class UserService {
     }
 
     const selectedPlan = prefs.selectedPlan!;
-    if (
-      (prefs.userType === 'personal' || prefs.userType === 'indie') &&
-      !PERSONAL_OR_INDIE_PLANS.has(selectedPlan)
-    ) {
+    if (!PLAN_SET.has(selectedPlan)) {
       throw new BadRequestException(
-        'selectedPlan must be indie_free or indie_pro for personal/indie users',
-      );
-    }
-
-    if (prefs.userType === 'enterprise' && !ENTERPRISE_PLANS.has(selectedPlan)) {
-      throw new BadRequestException(
-        'selectedPlan must be corp_starter, corp_team, or corp_enterprise for enterprise users',
+        'selectedPlan must be free, professional, studio, or enterprise',
       );
     }
   }

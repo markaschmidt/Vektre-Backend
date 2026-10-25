@@ -11,6 +11,7 @@ import {
   JOB_OLLAMA_DOCUMENT_SUGGESTION,
 } from '../queues/queue-names.js';
 import { AppDataService } from '../integrations/app-data.service.js';
+import { UsageCreditsService } from '../billing/usage-credits.service.js';
 import { resolveHunyuan3dOptions } from './hunyuan-3d-options.js';
 import { resolveHunyuan2mvOptions } from './hunyuan-2mv-options.js';
 import {
@@ -23,6 +24,7 @@ import {
 import { OllamaProviderAdapter } from './providers/ollama.provider.js';
 import { bullJobId } from '../queues/bull-job-id.js';
 import { heavyJobOptions } from '../queues/job-options.js';
+import { tracedJobData } from '../telemetry/bullmq-trace.js';
 import type { CreateGenRequestDto } from './dto/create-gen-request.dto.js';
 import type {
   RunInferenceJob,
@@ -66,7 +68,13 @@ export interface EnqueueConceptArtOpts {
   runId?: string;
   activityId?: string;
   preferredAssetId?: string;
-  surface?: 'storyboard' | 'foundry' | 'canvas' | 'direct' | 'unknown';
+  surface?:
+    | 'storyboard'
+    | 'foundry'
+    | 'canvas'
+    | 'gui_screen'
+    | 'direct'
+    | 'unknown';
   actionKind?: string;
 }
 
@@ -79,6 +87,7 @@ export class GenerativeModelService {
     private readonly genQueue: Queue,
     private readonly appData: AppDataService,
     private readonly ollama: OllamaProviderAdapter,
+    private readonly usageCredits: UsageCreditsService,
   ) {}
 
   // ─── Legacy generic request ───────────────────────────────────────────────
@@ -87,6 +96,7 @@ export class GenerativeModelService {
     userId: string,
     dto: CreateGenRequestDto,
   ): Promise<{ requestId: string; status: string }> {
+    await this.usageCredits.assertHasCredits(userId);
     const requestId = randomUUID();
     const jobId = bullJobId('gen', userId, requestId);
 
@@ -115,7 +125,7 @@ export class GenerativeModelService {
       inputRefs: dto.inputRefs ?? [],
     };
 
-    await this.genQueue.add('run-inference', payload, {
+    await this.genQueue.add('run-inference', tracedJobData(payload), {
       ...heavyJobOptions,
       jobId,
     });
@@ -184,6 +194,8 @@ export class GenerativeModelService {
       multiviewUrls: multiviewCount > 0 ? multiviewUrls : undefined,
       projectId: dto.projectId,
       localProjectId: dto.localProjectId,
+      preferredAssetId: dto.preferredAssetId,
+      displayName: dto.displayName,
       surface:
         dto.surface ??
         (dto.projectId || dto.localProjectId ? 'foundry' : 'direct'),
@@ -218,11 +230,19 @@ export class GenerativeModelService {
     runId?: string;
     activityId?: string;
     preferredAssetId?: string;
-    surface?: 'storyboard' | 'foundry' | 'canvas' | 'direct' | 'unknown';
+    displayName?: string;
+    surface?:
+      | 'storyboard'
+      | 'foundry'
+      | 'canvas'
+      | 'gui_screen'
+      | 'direct'
+      | 'unknown';
     actionKind?: string;
     hunyuanOptions?: ReturnType<typeof resolveHunyuan3dOptions>;
     hunyuan2mvOptions?: ReturnType<typeof resolveHunyuan2mvOptions>;
   }): Promise<void> {
+    await this.usageCredits.assertHasCredits(opts.userId);
     const hunyuanModel = opts.hunyuanModel ?? '3.1';
     const jobId = bullJobId('replicate-3d', opts.userId, opts.requestId);
 
@@ -247,6 +267,7 @@ export class GenerativeModelService {
       runId: opts.runId,
       activityId: opts.activityId,
       preferredAssetId: opts.preferredAssetId,
+      displayName: opts.displayName,
       surface:
         opts.surface ??
         (opts.projectId || opts.localProjectId ? 'canvas' : 'direct'),
@@ -261,7 +282,7 @@ export class GenerativeModelService {
           : undefined,
     };
 
-    await this.genQueue.add(JOB_REPLICATE_GENERATE_3D, payload, {
+    await this.genQueue.add(JOB_REPLICATE_GENERATE_3D, tracedJobData(payload), {
       ...heavyJobOptions,
       jobId,
     });
@@ -284,6 +305,7 @@ export class GenerativeModelService {
     userId: string,
     dto: CreateDocumentSuggestionDto,
   ): Promise<{ requestId: string; status: string }> {
+    await this.usageCredits.assertHasCredits(userId);
     const requestId = randomUUID();
     const jobId = bullJobId('openai-doc', userId, requestId);
 
@@ -301,7 +323,7 @@ export class GenerativeModelService {
       context: dto.context,
     };
 
-    await this.genQueue.add(JOB_OPENAI_DOCUMENT_SUGGESTION, payload, {
+    await this.genQueue.add(JOB_OPENAI_DOCUMENT_SUGGESTION, tracedJobData(payload), {
       ...heavyJobOptions,
       jobId,
     });
@@ -327,7 +349,7 @@ export class GenerativeModelService {
     if (dto.provider) {
       if (!isImageProviderId(dto.provider)) {
         throw new BadRequestException(
-          `Unsupported image provider: ${dto.provider}`,
+          `Unsupported image provider: ${String(dto.provider)}`,
         );
       }
       provider = dto.provider;
@@ -356,6 +378,7 @@ export class GenerativeModelService {
    * (`concept_art` action). Routes to OpenAI GPT Image or Replicate FLUX.2.
    */
   async enqueueConceptArt(opts: EnqueueConceptArtOpts): Promise<void> {
+    await this.usageCredits.assertHasCredits(opts.userId);
     const provider = opts.provider ?? DEFAULT_IMAGE_PROVIDER;
     const composed = composeImagePrompt({
       configPrompt: opts.prompt,
@@ -415,7 +438,7 @@ export class GenerativeModelService {
       actionKind: opts.actionKind ?? 'concept_art',
     };
 
-    await this.genQueue.add(JOB_OPENAI_CONCEPT_ART, payload, {
+    await this.genQueue.add(JOB_OPENAI_CONCEPT_ART, tracedJobData(payload), {
       ...heavyJobOptions,
       jobId,
     });
@@ -471,7 +494,7 @@ export class GenerativeModelService {
       actionKind: opts.actionKind ?? 'concept_art',
     };
 
-    await this.genQueue.add(JOB_REPLICATE_GENERATE_IMAGE, payload, {
+    await this.genQueue.add(JOB_REPLICATE_GENERATE_IMAGE, tracedJobData(payload), {
       ...heavyJobOptions,
       jobId,
     });
@@ -500,6 +523,7 @@ export class GenerativeModelService {
       );
     }
 
+    await this.usageCredits.assertHasCredits(userId);
     const requestId = randomUUID();
     const jobId = bullJobId('ollama-doc', userId, requestId);
 
@@ -517,7 +541,7 @@ export class GenerativeModelService {
       modelId: dto.modelId,
     };
 
-    await this.genQueue.add(JOB_OLLAMA_DOCUMENT_SUGGESTION, payload, {
+    await this.genQueue.add(JOB_OLLAMA_DOCUMENT_SUGGESTION, tracedJobData(payload), {
       ...heavyJobOptions,
       jobId,
     });

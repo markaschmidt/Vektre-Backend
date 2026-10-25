@@ -21,6 +21,7 @@ interface ProjectJobBase {
 
 export interface CreateProjectJob extends ProjectJobBase {
   ownerUserId: string;
+  organizationId?: string;
   name: string;
   description?: string | null;
   workspaceMode: ProjectWorkspaceMode;
@@ -29,6 +30,7 @@ export interface CreateProjectJob extends ProjectJobBase {
 }
 
 export interface UpdateProjectJob extends ProjectJobBase {
+  organizationId?: string | null;
   name?: string;
   description?: string | null;
   workspaceMode?: ProjectWorkspaceMode;
@@ -67,7 +69,6 @@ export type ProjectOpJobData =
   | CreateProjectJob
   | UpdateProjectJob
   | ArchiveProjectJob
-  | DeleteProjectJob
   | UpsertProjectMemberJob
   | RemoveProjectMemberJob
   | UpsertProjectAssetJob

@@ -11,10 +11,11 @@ import { createHash, randomBytes } from 'node:crypto';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { SupabaseService } from '../integrations/supabase.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import type { ProjectMemberRole, ProjectInviteRow } from '../integrations/app-data.types.js';
-import {
-  hasPermission,
-} from '../collaboration/models/collaboration.model.js';
+import type {
+  ProjectMemberRole,
+  ProjectInviteRow,
+} from '../integrations/app-data.types.js';
+import { hasPermission } from '../collaboration/models/collaboration.model.js';
 import type {
   CreateEmailInviteResponse,
   CreateCodeInviteResponse,
@@ -45,7 +46,9 @@ function generateInviteCode(): { code: string; codeHash: string } {
 }
 
 function hashCode(plaintext: string): string {
-  return createHash('sha256').update(plaintext.trim().toUpperCase()).digest('hex');
+  return createHash('sha256')
+    .update(plaintext.trim().toUpperCase())
+    .digest('hex');
 }
 
 @Injectable()
@@ -67,7 +70,11 @@ export class InvitesService {
   ): Promise<CreateEmailInviteResponse> {
     await this.assertMembership(projectId, actorUserId, 'editor');
 
-    const project = await requireProjectAccess(this.appData, actorUserId, projectId);
+    const project = await requireProjectAccess(
+      this.appData,
+      actorUserId,
+      projectId,
+    );
 
     const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : undefined;
     if (expiresAt && expiresAt <= new Date()) {
@@ -80,9 +87,14 @@ export class InvitesService {
 
     // Guard: don't invite someone who is already an active member
     if (inviteeUserId) {
-      const existing = await this.appData.getProjectMembership(projectId, inviteeUserId);
+      const existing = await this.appData.getProjectMembership(
+        projectId,
+        inviteeUserId,
+      );
       if (existing?.status === 'active') {
-        throw new ConflictException('That user is already a member of this project');
+        throw new ConflictException(
+          'That user is already a member of this project',
+        );
       }
     }
 
@@ -98,7 +110,9 @@ export class InvitesService {
       expiresAt,
     });
 
-    this.logger.log(`Email invite ${inviteId} created for ${dto.email} → project ${projectId}`);
+    this.logger.log(
+      `Email invite ${inviteId} created for ${dto.email} → project ${projectId}`,
+    );
 
     // Notify the invitee in-app only when they are already a registered user
     if (inviteeUserId) {
@@ -145,7 +159,9 @@ export class InvitesService {
       expiresAt,
     });
 
-    this.logger.log(`Code invite ${inviteId} created for project ${projectId}, expires ${expiresAt.toISOString()}`);
+    this.logger.log(
+      `Code invite ${inviteId} created for project ${projectId}, expires ${expiresAt.toISOString()}`,
+    );
 
     return {
       ...(toInviteResponse(invite) as CreateCodeInviteResponse),
@@ -183,28 +199,45 @@ export class InvitesService {
     const codeHash = hashCode(dto.code);
     const invite = await this.appData.getProjectInviteByCodeHash(codeHash);
 
-    if (!invite || invite.inviteType !== 'code' || invite.status !== 'pending') {
-      throw new UnprocessableEntityException('Invite code is invalid or has already been used');
+    if (
+      !invite ||
+      invite.inviteType !== 'code' ||
+      invite.status !== 'pending'
+    ) {
+      throw new UnprocessableEntityException(
+        'Invite code is invalid or has already been used',
+      );
     }
     if (isExpired(invite)) {
       throw new UnprocessableEntityException('This invite code has expired');
     }
 
     // Guard: don't let an existing member "join" again
-    const existing = await this.appData.getProjectMembership(invite.projectId, userId);
+    const existing = await this.appData.getProjectMembership(
+      invite.projectId,
+      userId,
+    );
     if (existing?.status === 'active') {
       throw new ConflictException('You are already a member of this project');
     }
 
-    const result = await this.appData.acceptProjectInvite(invite.inviteId, userId, {
-      displayName: dto.displayName,
-      color: dto.color,
-    });
+    const result = await this.appData.acceptProjectInvite(
+      invite.inviteId,
+      userId,
+      {
+        displayName: dto.displayName,
+        color: dto.color,
+      },
+    );
     if (!result) {
-      throw new UnprocessableEntityException('Failed to accept invite — it may have just expired or been revoked');
+      throw new UnprocessableEntityException(
+        'Failed to accept invite — it may have just expired or been revoked',
+      );
     }
 
-    this.logger.log(`User ${userId} joined project ${invite.projectId} via code invite ${invite.inviteId}`);
+    this.logger.log(
+      `User ${userId} joined project ${invite.projectId} via code invite ${invite.inviteId}`,
+    );
 
     const project = await this.appData.getProjectById(invite.projectId);
     if (project) {
@@ -236,16 +269,22 @@ export class InvitesService {
       throw new NotFoundException('Invite not found');
     }
     if (invite.status !== 'pending') {
-      throw new UnprocessableEntityException('This invite has already been accepted or revoked');
+      throw new UnprocessableEntityException(
+        'This invite has already been accepted or revoked',
+      );
     }
     if (isExpired(invite)) {
       throw new UnprocessableEntityException('This invite has expired');
     }
 
     // Verify the accepting user owns the email that was invited
-    const inviteeUserId = await this.supabase.getUserIdByEmail(invite.inviteeEmail!);
+    const inviteeUserId = await this.supabase.getUserIdByEmail(
+      invite.inviteeEmail!,
+    );
     if (inviteeUserId !== userId) {
-      throw new ForbiddenException('This invite was sent to a different email address');
+      throw new ForbiddenException(
+        'This invite was sent to a different email address',
+      );
     }
 
     const result = await this.appData.acceptProjectInvite(inviteId, userId, {
@@ -256,7 +295,9 @@ export class InvitesService {
       throw new UnprocessableEntityException('Failed to accept invite');
     }
 
-    this.logger.log(`User ${userId} accepted email invite ${inviteId} for project ${invite.projectId}`);
+    this.logger.log(
+      `User ${userId} accepted email invite ${inviteId} for project ${invite.projectId}`,
+    );
 
     const project = await this.appData.getProjectById(invite.projectId);
     if (project) {
@@ -282,12 +323,18 @@ export class InvitesService {
     projectId: string,
     actorUserId: string,
   ): Promise<InviteResponse[]> {
-    const member = await this.assertMembership(projectId, actorUserId, 'viewer');
+    const member = await this.assertMembership(
+      projectId,
+      actorUserId,
+      'viewer',
+    );
     if (!hasPermission(member.role, 'editor')) {
       return [];
     }
 
-    const rows = await this.appData.listProjectInvites(projectId, { status: 'pending' });
+    const rows = await this.appData.listProjectInvites(projectId, {
+      status: 'pending',
+    });
     return rows.map(toInviteResponse);
   }
 
@@ -303,7 +350,9 @@ export class InvitesService {
       throw new NotFoundException('Invite not found');
     }
     if (invite.status !== 'pending') {
-      throw new UnprocessableEntityException('Invite is already accepted or revoked');
+      throw new UnprocessableEntityException(
+        'Invite is already accepted or revoked',
+      );
     }
 
     await this.appData.revokeProjectInvite(inviteId);
@@ -317,7 +366,10 @@ export class InvitesService {
     userId: string,
     minimumRole: ProjectMemberRole,
   ) {
-    const access = await this.appData.resolveProjectAccessForUser(userId, projectId);
+    const access = await this.appData.resolveProjectAccessForUser(
+      userId,
+      projectId,
+    );
     if (!access.ok) throwProjectAccessDenied(access.reason);
 
     const project = access.project;

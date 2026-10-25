@@ -35,7 +35,9 @@ describe('AppDataService', () => {
   it('upserts user profiles into Supabase Postgres', async () => {
     const readChain = createChain({ data: null, error: null });
     const writeChain = createChain({ data: null, error: null });
-    writeChain.upsert = jest.fn().mockResolvedValue({ data: null, error: null });
+    writeChain.upsert = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: null });
     fromMock.mockReturnValueOnce(readChain).mockReturnValueOnce(writeChain);
 
     await service.upsertUserProfile({
@@ -64,10 +66,15 @@ describe('AppDataService', () => {
     const extendedFailChain = createChain({ data: null, error: null });
     extendedFailChain.upsert = jest.fn().mockResolvedValue({
       data: null,
-      error: { message: "Could not find the 'on_demand_json' column of 'user_profile' in the schema cache" },
+      error: {
+        message:
+          "Could not find the 'on_demand_json' column of 'user_profile' in the schema cache",
+      },
     });
     const legacyChain = createChain({ data: null, error: null });
-    legacyChain.upsert = jest.fn().mockResolvedValue({ data: null, error: null });
+    legacyChain.upsert = jest
+      .fn()
+      .mockResolvedValue({ data: null, error: null });
     fromMock
       .mockReturnValueOnce(readChain)
       .mockReturnValueOnce(extendedFailChain)
@@ -76,7 +83,7 @@ describe('AppDataService', () => {
     await service.upsertUserProfile({
       userId: 'user-1',
       displayName: 'Alice',
-      plan: 'indie_pro',
+      plan: 'professional',
       preferences: { onboardingCompleted: true },
       onDemand: { monthlyCap: null },
       createdAt: new Date('2026-01-01T00:00:00Z'),
@@ -86,7 +93,10 @@ describe('AppDataService', () => {
     expect(legacyChain.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         user_id: 'user-1',
-        preferences_json: { onboardingCompleted: true, selectedPlan: 'indie_pro' },
+        preferences_json: {
+          onboardingCompleted: true,
+          selectedPlan: 'professional',
+        },
       }),
     );
     expect(legacyChain.upsert).toHaveBeenCalledWith(
@@ -134,7 +144,10 @@ describe('AppDataService', () => {
     };
 
     const getLinkChain = createChain({ data: linkRow, error: null });
-    const updateLinkChain = createChain({ data: { ...linkRow, use_count: 1 }, error: null });
+    const updateLinkChain = createChain({
+      data: { ...linkRow, use_count: 1 },
+      error: null,
+    });
     const memberChain = createChain({
       data: {
         membership_id: 'proj-1:user-2',
@@ -153,10 +166,12 @@ describe('AppDataService', () => {
 
     fromMock.mockImplementation((table: string) => {
       if (table === 'share_link') {
-        return updateLinkChain.maybeSingle.mockImplementationOnce(async () => ({
-          data: linkRow,
-          error: null,
-        })) || getLinkChain;
+        return (
+          updateLinkChain.maybeSingle.mockImplementationOnce(async () => ({
+            data: linkRow,
+            error: null,
+          })) || getLinkChain
+        );
       }
       if (table === 'project_member') return memberChain;
       return createChain({ data: null, error: null });
@@ -242,7 +257,10 @@ describe('AppDataService', () => {
       table === 'project' ? projectChain : memberChain,
     );
 
-    const result = await service.resolveProjectAccessForUser('user-2', 'proj-1');
+    const result = await service.resolveProjectAccessForUser(
+      'user-2',
+      'proj-1',
+    );
     expect(result).toEqual({ ok: false, reason: 'deleted' });
   });
 
@@ -276,7 +294,10 @@ describe('AppDataService', () => {
       table === 'project' ? projectChain : memberChain,
     );
 
-    const result = await service.resolveProjectAccessForUser('user-2', 'proj-1');
+    const result = await service.resolveProjectAccessForUser(
+      'user-2',
+      'proj-1',
+    );
     expect(result).toEqual({ ok: false, reason: 'removed' });
   });
 });

@@ -42,6 +42,10 @@ export class CreateProjectDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  organizationId?: string;
 }
 
 export class UpdateProjectDto {
@@ -66,6 +70,10 @@ export class UpdateProjectDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  organizationId?: string | null;
 }
 
 export class UpsertProjectMemberDto {

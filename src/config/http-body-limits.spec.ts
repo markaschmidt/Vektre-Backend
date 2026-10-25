@@ -1,4 +1,7 @@
-import { isLargeBodyUploadRoute } from './http-body-limits.js';
+import {
+  isLargeBodyUploadRoute,
+  isStripeWebhookRoute,
+} from './http-body-limits.js';
 
 describe('isLargeBodyUploadRoute', () => {
   it('allows large bodies for asset upload', () => {
@@ -19,10 +22,24 @@ describe('isLargeBodyUploadRoute', () => {
     ).toBe(true);
   });
 
-  it('keeps default limit for other project routes', () => {
-    expect(isLargeBodyUploadRoute('/projects/proj-1/assets', 'POST')).toBe(false);
+  it('allows large bodies for organization logo upload', () => {
+    expect(isLargeBodyUploadRoute('/organizations/logo/upload', 'POST')).toBe(
+      true,
+    );
     expect(
-      isLargeBodyUploadRoute('/projects/proj-1/assets/import-generated', 'POST'),
+      isLargeBodyUploadRoute('/organizations/org-1/logo', 'POST'),
+    ).toBe(true);
+  });
+
+  it('keeps default limit for other project routes', () => {
+    expect(isLargeBodyUploadRoute('/projects/proj-1/assets', 'POST')).toBe(
+      false,
+    );
+    expect(
+      isLargeBodyUploadRoute(
+        '/projects/proj-1/assets/import-generated',
+        'POST',
+      ),
     ).toBe(false);
     expect(isLargeBodyUploadRoute('/generative-model/3d', 'POST')).toBe(false);
   });
@@ -31,5 +48,16 @@ describe('isLargeBodyUploadRoute', () => {
     expect(
       isLargeBodyUploadRoute('/projects/proj-1/assets/upload', 'GET'),
     ).toBe(false);
+  });
+});
+
+describe('isStripeWebhookRoute', () => {
+  it('matches Stripe webhook POST', () => {
+    expect(isStripeWebhookRoute('/billing/webhooks/stripe', 'POST')).toBe(true);
+  });
+
+  it('rejects other methods and paths', () => {
+    expect(isStripeWebhookRoute('/billing/webhooks/stripe', 'GET')).toBe(false);
+    expect(isStripeWebhookRoute('/billing/me', 'POST')).toBe(false);
   });
 });

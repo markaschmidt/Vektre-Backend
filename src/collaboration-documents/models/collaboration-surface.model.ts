@@ -2,12 +2,8 @@ import type { CollaborationDocumentType } from '../../collaboration-yjs/document
 
 export { CollaborationDocumentType };
 
-export const COLLABORATION_DOCUMENT_TYPES: readonly CollaborationDocumentType[] = [
-  'storyboard',
-  'foundry',
-  'canvas',
-  'gui_screen',
-];
+export const COLLABORATION_DOCUMENT_TYPES: readonly CollaborationDocumentType[] =
+  ['storyboard', 'foundry', 'canvas', 'gui_screen'];
 
 export function isCollaborationDocumentType(
   value: unknown,
@@ -50,7 +46,10 @@ export interface CollaborationSurface {
   reconciliationStrategy: string;
 }
 
-export const SURFACE_REGISTRY: Record<CollaborationDocumentType, CollaborationSurface> = {
+export const SURFACE_REGISTRY: Record<
+  CollaborationDocumentType,
+  CollaborationSurface
+> = {
   storyboard: {
     documentType: 'storyboard',
     label: 'Storyboard',
@@ -61,7 +60,8 @@ export const SURFACE_REGISTRY: Record<CollaborationDocumentType, CollaborationSu
       fields: ['cursor', 'selectionRange', 'activeBlockId', 'localActivityId'],
     },
     commentAnchorSchema: {
-      description: 'Anchors a comment to a scene/card/block and an optional text range.',
+      description:
+        'Anchors a comment to a scene/card/block and an optional text range.',
       requiredFields: ['blockId'],
       optionalFields: ['sceneId', 'range'],
     },
@@ -143,28 +143,43 @@ export const SURFACE_REGISTRY: Record<CollaborationDocumentType, CollaborationSu
   gui_screen: {
     documentType: 'gui_screen',
     label: 'GUI Maker',
-    yjsSchemaVersion: 'gui_screen.v1',
+    yjsSchemaVersion: 'gui_screen.v2',
     awarenessSchema: {
       description:
-        'Cursor/selection over screen components, inspector panel focus, and local generation status.',
-      fields: ['cursor', 'selectedComponentIds', 'inspectorFocus', 'localActivityId'],
+        'Cursor/selection over screens, groups, components, and block instances; inspector panel focus; and local UI-agent run status.',
+      fields: [
+        'cursor',
+        'selectedComponentIds',
+        'inspectorFocus',
+        'localActivityId',
+      ],
     },
     commentAnchorSchema: {
-      description: 'Anchors a comment to a screen/component and an optional prop path.',
+      description:
+        'Anchors a comment to a screen/component and an optional prop path.',
       requiredFields: [],
       optionalFields: ['screenId', 'componentId', 'propPath'],
     },
     generationTargets: {
-      description: 'Reserved for future component/screen generation.',
+      description:
+        'UI-agent runs produce document patches, assets, and memory proposals for HUDs, menus, overlays, and spatial UI.',
       activityTypes: ['ai_task'],
-      targetFields: ['screenId', 'componentId'],
+      targetFields: [
+        'runId',
+        'activityId',
+        'screenId',
+        'componentId',
+        'assetId',
+      ],
     },
     reconciliationStrategy:
-      'Reserved: on completion, insert the generated component/layout node exactly once, guarded by activityId.',
+      'Desktop is the only Yjs writer. Apply an accepted proposal once in one transaction, guarded by activityId/runId on appliedActivities, then POST ui-agent reconcile (and activity reconcile) with the live canonical hash.',
   },
 };
 
-export function getSurface(documentType: CollaborationDocumentType): CollaborationSurface {
+export function getSurface(
+  documentType: CollaborationDocumentType,
+): CollaborationSurface {
   return SURFACE_REGISTRY[documentType];
 }
 

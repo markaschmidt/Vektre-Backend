@@ -80,7 +80,8 @@ export function buildCanvasCapabilitiesResponse(): CanvasCapabilitiesResponse {
         actionKind: 'concept_art',
         ports: CANVAS_NODE_PORT_DEFS.concept_art,
         configSchema: {
-          prompt: 'string? — override; otherwise connected rich-text / storyboard',
+          prompt:
+            'string? — override; otherwise connected rich-text / storyboard',
           style: 'string?',
           useConnectedSectionText: 'boolean? — default true',
           provider: '"gpt_image" | "flux2" — default gpt_image',
@@ -110,7 +111,8 @@ export function buildCanvasCapabilitiesResponse(): CanvasCapabilitiesResponse {
           resolution: 'string? — FLUX.2 only',
           seed: 'number? — FLUX.2 only',
           variants: 'number? — 1–4, GPT Image only',
-          imageAssetIds: 'string[]? — extra source images beyond connected ports',
+          imageAssetIds:
+            'string[]? — extra source images beyond connected ports',
         },
       },
       {
@@ -121,13 +123,16 @@ export function buildCanvasCapabilitiesResponse(): CanvasCapabilitiesResponse {
         ports: CANVAS_NODE_PORT_DEFS.model_3d,
         configSchema: {
           prompt: 'string? — Hunyuan 3.1 text-to-3D only',
-          preferImageInput: 'boolean? — 3.1: default true when an image is connected',
+          preferImageInput:
+            'boolean? — 3.1: default true when an image is connected',
           hunyuanModel:
             '"3.1"|"2mv" — default 3.1; auto 2mv when ≥2 multiview ports wired',
           multiviewAssetIds:
             '{ front?, back?, left?, right? }? — alternative to multiview ports',
-          qualityTier: '"prop"|"hero" — 3.1 only; default prop (40k / Geometry)',
-          faceCount: 'number? — 3.1: 40000–1500000; 2mv fallback via targetFaceNum',
+          qualityTier:
+            '"prop"|"hero" — 3.1 only; default prop (40k / Geometry)',
+          faceCount:
+            'number? — 3.1: 40000–1500000; 2mv fallback via targetFaceNum',
           targetFaceNum: 'number? — 2mv only: 100–1000000; default 10000',
           generateType:
             '"Normal"|"Geometry"|"LowPoly" — 3.1 only; LowPoly → Geometry',

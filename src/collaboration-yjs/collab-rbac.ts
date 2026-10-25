@@ -20,7 +20,9 @@ function getAdminClient(): SupabaseClient {
     throw new Error('Supabase credentials are required for collaboration RBAC');
   }
 
-  adminClient = createClient(url, serviceKey, { auth: { persistSession: false } });
+  adminClient = createClient(url, serviceKey, {
+    auth: { persistSession: false },
+  });
   return adminClient;
 }
 

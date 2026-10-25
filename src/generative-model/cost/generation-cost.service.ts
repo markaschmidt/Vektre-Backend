@@ -1,14 +1,17 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AppDataService } from '../../integrations/app-data.service.js';
 import { GenerationCostEstimator } from './generation-cost.estimator.js';
 import type { GenerationUsageEventRow } from '../../integrations/app-data.types.js';
 import type {
   ProjectCostByActor,
+  ProjectCostByModel,
+  ProjectCostBySurface,
   ProjectCostPeriodSummary,
   ProjectCostSummaryResponse,
   RecordGenerationUsageInput,
 } from './generation-cost.types.js';
+import { UsageCreditsService } from '../../billing/usage-credits.service.js';
 
 @Injectable()
 export class GenerationCostService {
@@ -17,6 +20,7 @@ export class GenerationCostService {
   constructor(
     private readonly appData: AppDataService,
     private readonly estimator: GenerationCostEstimator,
+    @Optional() private readonly usageCredits?: UsageCreditsService,
   ) {}
 
   /**
@@ -39,11 +43,7 @@ export class GenerationCostService {
     const estimated =
       input.estimatedCostUsd ??
       (billable
-        ? this.estimator.estimateUsd(
-            input.provider,
-            input.usage,
-            input.modelId,
-          )
+        ? this.estimator.estimateUsd(input.provider, input.usage, input.modelId)
         : 0);
 
     try {
@@ -61,7 +61,33 @@ export class GenerationCostService {
         estimatedCostUsd: billable ? estimated : 0,
         currency: 'USD',
         billable,
+        documentId: input.documentId,
+        threadId: input.threadId,
+        runId: input.runId,
+        stage: input.stage,
+        providerRequestId: input.providerRequestId,
+        requestedModel: input.requestedModel,
+        actualModel: input.actualModel,
+        modelPresetId: input.modelPresetId,
+        promptVersion: input.promptVersion,
+        schemaVersion: input.schemaVersion,
+        contextManifestVersion: input.contextManifestVersion,
+        providerCostUsd: input.providerCostUsd,
+        priceTableVersion: input.priceTableVersion,
+        latencyMs: input.latencyMs,
+        retryCount: input.retryCount,
+        repairAttempts: input.repairAttempts,
+        outcome: input.outcome,
+        errorCategory: input.errorCategory,
+        imageCount: input.imageCount,
       });
+      if (billable && estimated > 0 && this.usageCredits) {
+        await this.usageCredits.consumeGeneration({
+          userId: input.actorUserId,
+          requestId: input.requestId,
+          estimatedCostUsd: estimated,
+        });
+      }
       this.logger.log(
         JSON.stringify({
           event: 'generation_usage_recorded',
@@ -113,13 +139,17 @@ export class GenerationCostService {
       year: summarize(yearEvents),
       total: summarize(totalEvents),
       pricingNote:
-        'estimatedCostUsd is derived from OpenAI usage tokens × configured $/1M rates and Replicate metrics.predict_time × configured $/sec. Vendors do not return a dollar cost field on each request.',
+        'estimatedCostUsd uses the configured price-table version on each row. providerCostUsd is the vendor-reported amount when present and is not mixed into estimated totals. Surfaces include storyboard, foundry, canvas, gui_screen, and chat/model stages.',
     };
   }
 }
 
-function summarize(events: GenerationUsageEventRow[]): ProjectCostPeriodSummary {
+function summarize(
+  events: GenerationUsageEventRow[],
+): ProjectCostPeriodSummary {
   const byActorMap = new Map<string, ProjectCostByActor>();
+  const bySurfaceMap = new Map<string, ProjectCostBySurface>();
+  const byModelMap = new Map<string, ProjectCostByModel>();
   let estimatedCostUsd = 0;
 
   for (const e of events) {
@@ -132,6 +162,33 @@ function summarize(events: GenerationUsageEventRow[]): ProjectCostPeriodSummary 
     cur.estimatedCostUsd += e.estimatedCostUsd;
     cur.eventCount += 1;
     byActorMap.set(e.actorUserId, cur);
+
+    const surface = bySurfaceMap.get(e.surface) ?? {
+      surface: e.surface,
+      estimatedCostUsd: 0,
+      eventCount: 0,
+    };
+    surface.estimatedCostUsd += e.estimatedCostUsd;
+    surface.eventCount += 1;
+    bySurfaceMap.set(e.surface, surface);
+
+    const modelKey = `${e.provider}:${e.modelId ?? e.actualModel ?? ''}`;
+    const usage = e.usage as {
+      text?: { inputTokens?: number; outputTokens?: number };
+    };
+    const model = byModelMap.get(modelKey) ?? {
+      provider: e.provider,
+      modelId: e.modelId ?? e.actualModel,
+      estimatedCostUsd: 0,
+      eventCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+    };
+    model.estimatedCostUsd += e.estimatedCostUsd;
+    model.eventCount += 1;
+    model.inputTokens += Number(usage.text?.inputTokens ?? 0);
+    model.outputTokens += Number(usage.text?.outputTokens ?? 0);
+    byModelMap.set(modelKey, model);
   }
 
   const byActor = [...byActorMap.values()]
@@ -141,10 +198,26 @@ function summarize(events: GenerationUsageEventRow[]): ProjectCostPeriodSummary 
     }))
     .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd);
 
+  const bySurface = [...bySurfaceMap.values()]
+    .map((item) => ({
+      ...item,
+      estimatedCostUsd: roundUsd(item.estimatedCostUsd),
+    }))
+    .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd);
+
+  const byModel = [...byModelMap.values()]
+    .map((item) => ({
+      ...item,
+      estimatedCostUsd: roundUsd(item.estimatedCostUsd),
+    }))
+    .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd);
+
   return {
     estimatedCostUsd: roundUsd(estimatedCostUsd),
     eventCount: events.length,
     byActor,
+    bySurface,
+    byModel,
   };
 }
 

@@ -13,6 +13,7 @@ import type {
   CollaborationSnapshotRow,
   ProjectCommentRow,
 } from '../integrations/app-data.types.js';
+import type { UiContextIndexQueue } from '../ui-agent/indexer/ui-context-index.queue.js';
 
 function makeDocumentRow(
   overrides: Partial<CollaborationDocumentRow> = {},
@@ -76,6 +77,8 @@ describe('CollaborationDocumentsService', () => {
     updateCollaborationDocument: jest.fn(),
     listCollaborationSnapshots: jest.fn(),
     getCollaborationSnapshotById: jest.fn(),
+    createCollaborationSnapshot: jest.fn(),
+    updateCollaborationSnapshotPreview: jest.fn(),
     createProjectComment: jest.fn(),
     getProjectComment: jest.fn(),
     listProjectComments: jest.fn(),
@@ -100,6 +103,25 @@ describe('CollaborationDocumentsService', () => {
   const supabase = {
     downloadObject: jest.fn(),
     uploadObject: jest.fn().mockResolvedValue(undefined),
+    deleteObject: jest.fn().mockResolvedValue(undefined),
+    objectExists: jest.fn().mockResolvedValue(true),
+    createSignedUploadUrl: jest.fn().mockResolvedValue({
+      signedUrl: 'https://signed.example/upload',
+      token: 'tok',
+      path: 'preview.png',
+    }),
+    createSignedDownloadUrl: jest.fn().mockResolvedValue(
+      'https://signed.example/download',
+    ),
+    getAdminClient: jest.fn().mockReturnValue({
+      from: jest.fn().mockReturnValue({
+        insert: jest.fn().mockResolvedValue({ error: null }),
+      }),
+    }),
+  };
+  const contextIndexQueue = {
+    enqueueSource: jest.fn().mockResolvedValue(true),
+    enqueueSnapshot: jest.fn().mockResolvedValue(true),
   };
 
   beforeEach(() => {
@@ -118,6 +140,7 @@ describe('CollaborationDocumentsService', () => {
       appData as unknown as AppDataService,
       commentNotifications as unknown as CollaborationCommentNotificationsService,
       supabase as unknown as SupabaseService,
+      contextIndexQueue as unknown as UiContextIndexQueue,
     );
   });
 
@@ -328,14 +351,17 @@ describe('CollaborationDocumentsService', () => {
 
     it('falls back to legacy canvas storage when fetching foundry content', async () => {
       appData.getCollaborationDocumentById.mockResolvedValue(
-        makeDocumentRow({ documentType: 'foundry', documentKey: 'project:proj-1:doc:foundry:doc-1' }),
+        makeDocumentRow({
+          documentType: 'foundry',
+          documentKey: 'project:proj-1:doc:foundry:doc-1',
+        }),
       );
-      supabase.downloadObject.mockImplementation(async (path: string) => {
+      supabase.downloadObject.mockImplementation((path: string) => {
         if (path === 'projects/proj-1/docs/foundry/doc-1/latest.yjs') {
           throw new Error('Object not found');
         }
         if (path === 'projects/proj-1/docs/canvas/doc-1/latest.yjs') {
-          return Buffer.from('legacy-bytes');
+          return Promise.resolve(Buffer.from('legacy-bytes'));
         }
         throw new Error(`unexpected path ${path}`);
       });
@@ -347,7 +373,9 @@ describe('CollaborationDocumentsService', () => {
       );
 
       expect(result.hasContent).toBe(true);
-      expect(result.dataBase64).toBe(Buffer.from('legacy-bytes').toString('base64'));
+      expect(result.dataBase64).toBe(
+        Buffer.from('legacy-bytes').toString('base64'),
+      );
     });
 
     it('re-throws storage errors unrelated to a missing object', async () => {
@@ -605,6 +633,169 @@ describe('CollaborationDocumentsService', () => {
         service.restoreVersion('proj-1', 'doc-1', 'snap-1', 'user-2'),
       ).rejects.toThrow(ForbiddenException);
       expect(supabase.downloadObject).not.toHaveBeenCalled();
+    });
+
+    it('creates a named snapshot from persisted latest.yjs without reconnect', async () => {
+      supabase.downloadObject.mockResolvedValue(Buffer.from('yjs-bytes'));
+      appData.createCollaborationSnapshot.mockResolvedValue({
+        snapshotId: 'snap_named',
+        documentKey: 'project:proj-1:doc:storyboard:doc-1',
+        documentId: 'doc-1',
+        storageRef:
+          'supabase://collaboration-snapshots/projects/proj-1/docs/storyboard/doc-1/snapshots/snap_named.yjs',
+        byteLength: 9,
+        createdByUserId: 'user-1',
+        createdAt: new Date('2026-01-02T00:00:00Z'),
+        name: 'Pre-layout pass',
+      });
+
+      const result = await service.createVersion('proj-1', 'doc-1', 'user-1', {
+        name: '  Pre-layout pass  ',
+      });
+
+      expect(supabase.downloadObject).toHaveBeenCalledWith(
+        'projects/proj-1/docs/storyboard/doc-1/latest.yjs',
+        'collaboration-snapshots',
+      );
+      expect(supabase.uploadObject).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^projects\/proj-1\/docs\/storyboard\/doc-1\/snapshots\/snap_.+\.yjs$/,
+        ),
+        expect.any(Buffer),
+        'application/octet-stream',
+        'collaboration-snapshots',
+      );
+      expect(appData.createCollaborationSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Pre-layout pass',
+          createdByUserId: 'user-1',
+          byteLength: 9,
+        }),
+      );
+      expect(appData.updateCollaborationDocument).not.toHaveBeenCalled();
+      expect(result.name).toBe('Pre-layout pass');
+      expect(result.byteLength).toBe(9);
+    });
+
+    it('rejects an empty snapshot name', async () => {
+      await expect(
+        service.createVersion('proj-1', 'doc-1', 'user-1', { name: '   ' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(supabase.downloadObject).not.toHaveBeenCalled();
+    });
+
+    it('rejects creating a snapshot when no Yjs bytes are persisted', async () => {
+      supabase.downloadObject.mockRejectedValue(new Error('Object not found'));
+      await expect(
+        service.createVersion('proj-1', 'doc-1', 'user-1', {
+          name: 'Pre-layout pass',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects viewers from creating a named snapshot', async () => {
+      asMember('viewer');
+      await expect(
+        service.createVersion('proj-1', 'doc-1', 'user-2', {
+          name: 'Pre-layout pass',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('returns name on listed versions and omits unsigned previews', async () => {
+      appData.listCollaborationSnapshots.mockResolvedValue([
+        {
+          snapshotId: 'snap-named',
+          documentKey: 'project:proj-1:doc:storyboard:doc-1',
+          documentId: 'doc-1',
+          storageRef: 'supabase://bucket/x.yjs',
+          createdAt: new Date('2026-01-02T00:00:00Z'),
+          name: 'Pre-layout pass',
+        },
+        {
+          snapshotId: 'snap-auto',
+          documentKey: 'project:proj-1:doc:storyboard:doc-1',
+          documentId: 'doc-1',
+          storageRef: 'supabase://bucket/y.yjs',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+          name: null,
+        },
+      ]);
+
+      const result = await service.listVersions('proj-1', 'doc-1', 'user-1');
+      expect(result[0].name).toBe('Pre-layout pass');
+      expect(result[1].name).toBeNull();
+      expect(result[0].previewUrl).toBeUndefined();
+    });
+
+    it('reserves a signed preview upload without creating a project asset', async () => {
+      appData.getCollaborationSnapshotById.mockResolvedValue({
+        snapshotId: 'snap-1',
+        documentKey: 'project:proj-1:doc:storyboard:doc-1',
+        documentId: 'doc-1',
+        storageRef: 'supabase://bucket/x.yjs',
+        createdAt: new Date(),
+        name: 'Pre-layout pass',
+      });
+      appData.updateCollaborationSnapshotPreview.mockResolvedValue({});
+
+      const result = await service.createVersionPreviewUpload(
+        'proj-1',
+        'doc-1',
+        'snap-1',
+        'user-1',
+        { contentType: 'image/png' },
+      );
+
+      expect(supabase.createSignedUploadUrl).toHaveBeenCalledWith(
+        'projects/proj-1/docs/storyboard/doc-1/snapshots/snap-1.preview.png',
+        'collaboration-snapshots',
+        { upsert: true },
+      );
+      expect(appData.updateCollaborationSnapshotPreview).toHaveBeenCalledWith(
+        expect.objectContaining({
+          snapshotId: 'snap-1',
+          previewContentType: 'image/png',
+        }),
+      );
+      expect(result.uploadUrl).toContain('https://signed.example/upload');
+    });
+
+    it('signs a preview URL only after complete confirms storage', async () => {
+      appData.getCollaborationSnapshotById.mockResolvedValue({
+        snapshotId: 'snap-1',
+        documentKey: 'project:proj-1:doc:storyboard:doc-1',
+        documentId: 'doc-1',
+        storageRef: 'supabase://bucket/x.yjs',
+        previewStorageRef:
+          'supabase://collaboration-snapshots/projects/proj-1/docs/storyboard/doc-1/snapshots/snap-1.preview.png',
+        previewContentType: 'image/png',
+        createdAt: new Date(),
+        name: 'Pre-layout pass',
+      });
+      appData.updateCollaborationSnapshotPreview.mockResolvedValue({
+        snapshotId: 'snap-1',
+        documentKey: 'project:proj-1:doc:storyboard:doc-1',
+        documentId: 'doc-1',
+        storageRef: 'supabase://bucket/x.yjs',
+        previewStorageRef:
+          'supabase://collaboration-snapshots/projects/proj-1/docs/storyboard/doc-1/snapshots/snap-1.preview.png',
+        previewContentType: 'image/png',
+        previewByteLength: 2048,
+        createdAt: new Date(),
+        name: 'Pre-layout pass',
+      });
+
+      const result = await service.completeVersionPreview(
+        'proj-1',
+        'doc-1',
+        'snap-1',
+        'user-1',
+        { byteLength: 2048 },
+      );
+
+      expect(supabase.objectExists).toHaveBeenCalled();
+      expect(result.previewUrl).toBe('https://signed.example/download');
     });
   });
 

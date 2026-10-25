@@ -6,9 +6,7 @@ import type {
 import { GenerativeModelService } from '../../generative-model/generative-model.service.js';
 import { CanvasAssetOutputService } from '../canvas-asset-output.service.js';
 import { AppDataService } from '../../integrations/app-data.service.js';
-import {
-  CANVAS_RUN_PROMPT_MAX_LENGTH,
-} from '../../collaboration-documents/models/canvas-graph.model.js';
+import { CANVAS_RUN_PROMPT_MAX_LENGTH } from '../../collaboration-documents/models/canvas-graph.model.js';
 import {
   DEFAULT_IMAGE_PROVIDER,
   isImageProviderId,
@@ -103,8 +101,7 @@ export class ConceptArtActionHandler implements CanvasActionHandler {
         | undefined,
       aspectRatio: this.optionalString(ctx.config.aspectRatio),
       resolution: this.optionalString(ctx.config.resolution),
-      seed:
-        typeof ctx.config.seed === 'number' ? ctx.config.seed : undefined,
+      seed: typeof ctx.config.seed === 'number' ? ctx.config.seed : undefined,
       variants: this.resolveVariants(ctx),
       referenceUrls,
       referenceAssetIds,
@@ -181,8 +178,6 @@ export class ConceptArtActionHandler implements CanvasActionHandler {
   }
 
   private optionalString(value: unknown): string | undefined {
-    return typeof value === 'string' && value.trim()
-      ? value.trim()
-      : undefined;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 }

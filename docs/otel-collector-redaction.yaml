@@ -1,0 +1,20 @@
+processors:
+  attributes/vektre_redact:
+    actions:
+      - key: prompt
+        action: delete
+      - key: messages
+        action: delete
+      - key: comment
+        action: delete
+      - key: document
+        action: delete
+      - key: output
+        action: delete
+      - pattern: (?i)(authorization|api[-_]?key|secret|password|token|signed.?url)
+        action: delete
+
+service:
+  pipelines:
+    traces:
+      processors: [attributes/vektre_redact]

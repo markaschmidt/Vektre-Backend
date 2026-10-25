@@ -4,7 +4,10 @@ import { Job } from 'bullmq';
 import { USER_OPS_QUEUE } from '../queues/queue-names.js';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { SupabaseService } from '../integrations/supabase.js';
-import type { UserOpJobData, UserOpJobName } from './models/user-op-job.model.js';
+import type {
+  UserOpJobData,
+  UserOpJobName,
+} from './models/user-op-job.model.js';
 
 @Processor(USER_OPS_QUEUE)
 export class UserProcessor extends WorkerHost {
@@ -22,16 +25,20 @@ export class UserProcessor extends WorkerHost {
 
     switch (job.name) {
       case 'sync-provider-documents':
-        return this.handleSyncProvider(job as Job<{
-          userId: string;
-          provider: string;
-          requestId: string;
-        }>);
+        return this.handleSyncProvider(
+          job as Job<{
+            userId: string;
+            provider: string;
+            requestId: string;
+          }>,
+        );
       case 'recalculate-preferences':
-        return this.handleRecalculatePreferences(job as Job<{
-          userId: string;
-          requestId: string;
-        }>);
+        return this.handleRecalculatePreferences(
+          job as Job<{
+            userId: string;
+            requestId: string;
+          }>,
+        );
       default:
         throw new Error(`Unknown user-ops job: ${(job as Job).name}`);
     }
@@ -51,9 +58,7 @@ export class UserProcessor extends WorkerHost {
       );
 
       if (!providerToken) {
-        this.logger.warn(
-          `No provider token for user ${userId} / ${provider}`,
-        );
+        this.logger.warn(`No provider token for user ${userId} / ${provider}`);
         await this.appData.updateRequestStatus(requestId, 'failed', {
           errorMessage: `No ${provider} token available`,
         });
@@ -85,10 +90,7 @@ export class UserProcessor extends WorkerHost {
       // TODO: retrieve profile and compute derived preferences
       const profile = await this.appData.getUserProfile(userId);
       if (profile) {
-        await this.appData.updateUserPreferences(
-          userId,
-          profile.preferences,
-        );
+        await this.appData.updateUserPreferences(userId, profile.preferences);
       }
       await this.appData.updateRequestStatus(requestId, 'completed');
     } catch (err) {

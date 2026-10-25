@@ -27,12 +27,14 @@ export type UserType = 'personal' | 'indie' | 'enterprise';
 
 export type UserUseCase = 'game_development' | 'animation' | 'cinema_film';
 
-export type UserPlan =
-  | 'indie_free'
-  | 'indie_pro'
-  | 'corp_starter'
-  | 'corp_team'
-  | 'corp_enterprise';
+export type UserPlan = 'free' | 'professional' | 'studio' | 'enterprise';
+
+export const USER_PLANS: readonly UserPlan[] = [
+  'free',
+  'professional',
+  'studio',
+  'enterprise',
+] as const;
 
 /** Stored in user_profile.preferences_json. */
 export interface UserOnboardingPreferences {
@@ -70,6 +72,13 @@ export type ProjectWorkspaceMode = 'solo' | 'collaborative';
 export type ProjectStatus = 'active' | 'archived' | 'deleted';
 export type ProjectMemberRole = 'owner' | 'editor' | 'commenter' | 'viewer';
 export type ProjectMemberStatus = 'active' | 'removed';
+export type OrganizationRole =
+  | 'executive'
+  | 'contributor'
+  | 'inspector'
+  | 'spectator';
+export type OrganizationMemberStatus = 'active' | 'removed';
+export type OrganizationProvider = 'github' | 'figma' | 'perforce' | 'git_lfs';
 
 /** Why a user cannot access a project (for client-facing errors). */
 export type ProjectAccessDenialReason = 'not_found' | 'removed' | 'deleted';
@@ -88,12 +97,50 @@ export type ShareLinkRole = 'viewer' | 'commenter' | 'editor';
 export interface ProjectRow {
   projectId: string;
   ownerUserId: string;
+  organizationId?: string | null;
   name: string;
   description?: string | null;
   workspaceMode: ProjectWorkspaceMode;
   status: ProjectStatus;
   iconAssetId?: string;
   metadata?: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface OrganizationRow {
+  organizationId: string;
+  name: string;
+  slug: string;
+  createdBy: string;
+  /** Public URL for the company logo. Null when unset. */
+  logoUrl?: string | null;
+  /** Pixel width of the logo; required with logoUrl; max 128. */
+  logoWidth?: number | null;
+  /** Pixel height of the logo; required with logoUrl; max 128. */
+  logoHeight?: number | null;
+  storageQuotaOverrideBytes?: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface OrganizationMemberRow {
+  organizationId: string;
+  userId: string;
+  role: OrganizationRole;
+  status: OrganizationMemberStatus;
+  addedByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface OrganizationProviderCredentialRow {
+  organizationId: string;
+  provider: OrganizationProvider;
+  encryptedPayload: string;
+  status: 'connected' | 'invalid' | 'disconnected';
+  metadata: Record<string, unknown>;
+  updatedBy: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -256,6 +303,10 @@ export interface CollaborationSnapshotRow {
   byteLength?: number;
   createdByUserId?: string;
   createdAt: Date;
+  name?: string | null;
+  previewStorageRef?: string | null;
+  previewContentType?: string | null;
+  previewByteLength?: number | null;
 }
 
 // ─── Project comments ────────────────────────────────────────────────────────
@@ -344,4 +395,23 @@ export interface GenerationUsageEventRow {
   currency: string;
   billable: boolean;
   createdAt: Date;
+  documentId?: string;
+  threadId?: string;
+  runId?: string;
+  stage?: string;
+  providerRequestId?: string;
+  requestedModel?: string;
+  actualModel?: string;
+  modelPresetId?: string;
+  promptVersion?: string;
+  schemaVersion?: string;
+  contextManifestVersion?: string;
+  providerCostUsd?: number;
+  priceTableVersion?: string;
+  latencyMs?: number;
+  retryCount?: number;
+  repairAttempts?: number;
+  outcome?: string;
+  errorCategory?: string;
+  imageCount?: number;
 }

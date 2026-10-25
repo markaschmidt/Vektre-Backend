@@ -13,7 +13,9 @@ import {
 
 @Processor(COLLAB_OPS_QUEUE, { concurrency: 20 })
 export class CollaborationCommentNotificationsProcessor extends WorkerHost {
-  private readonly logger = new Logger(CollaborationCommentNotificationsProcessor.name);
+  private readonly logger = new Logger(
+    CollaborationCommentNotificationsProcessor.name,
+  );
 
   constructor(private readonly notifications: NotificationsService) {
     super();
@@ -38,7 +40,9 @@ export class CollaborationCommentNotificationsProcessor extends WorkerHost {
       }
       case 'created':
       case 'resolved':
-        this.logger.debug(`Processed comment ${payload.kind} activity for ${payload.commentId}`);
+        this.logger.debug(
+          `Processed comment ${payload.kind} activity for ${payload.commentId}`,
+        );
         break;
       default:
         break;

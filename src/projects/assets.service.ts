@@ -9,9 +9,7 @@ import { AppDataService } from '../integrations/app-data.service.js';
 import type { ProjectAssetRow } from '../integrations/app-data.types.js';
 import { SupabaseService } from '../integrations/supabase.js';
 import { requireProjectAccess } from './project-access.js';
-import {
-  normalizeAssetMetadata,
-} from './asset-conventions.js';
+import { normalizeAssetMetadata } from './asset-conventions.js';
 import {
   toReadyUploadResponse,
   type ProjectAssetBytesResponse,
@@ -23,6 +21,9 @@ import type {
   UploadProjectAssetChunkDto,
   ImportGeneratedAssetDto,
 } from './dto/project.dto.js';
+import { StorageQuotaService } from '../storage-quota/storage-quota.service.js';
+import { canonicalSha256 } from '@markaschmidt/ui-builder-contracts';
+import { UiContextIndexQueue } from '../ui-agent/indexer/ui-context-index.queue.js';
 
 const SUPABASE_ASSET_REF_PREFIX = 'supabase://project-assets';
 
@@ -46,6 +47,8 @@ export class AssetsService {
   constructor(
     private readonly appData: AppDataService,
     private readonly supabase: SupabaseService,
+    private readonly storageQuota: StorageQuotaService,
+    private readonly contextIndexQueue: UiContextIndexQueue,
   ) {}
 
   /**
@@ -60,6 +63,12 @@ export class AssetsService {
 
     const assetId = dto.assetId ?? `asset_${randomUUID()}`;
     const bytes = decodeBase64(dto.dataBase64);
+    await this.storageQuota.assertWithinQuota(
+      userId,
+      projectId,
+      bytes.byteLength,
+      assetId,
+    );
     const bucket = this.supabase.getStorageBucket();
     const objectPath = buildAssetObjectPath(projectId, assetId, dto.name);
     const storageRef = `${SUPABASE_ASSET_REF_PREFIX}/${objectPath}`;
@@ -89,7 +98,12 @@ export class AssetsService {
       metadata,
     });
 
-    await this.supabase.uploadObject(objectPath, Buffer.from(bytes), dto.mimeType, bucket);
+    await this.supabase.uploadObject(
+      objectPath,
+      Buffer.from(bytes),
+      dto.mimeType,
+      bucket,
+    );
     await this.appData.updateProjectAssetStatus(assetId, 'ready', {
       sizeBytes: bytes.byteLength,
       checksum: dto.checksum,
@@ -97,8 +111,11 @@ export class AssetsService {
       bucket,
       objectPath,
     });
+    await this.enqueueAssetIndex(projectId, assetId);
 
-    this.logger.log(`Asset ${assetId} stored in Supabase Storage for project ${projectId}`);
+    this.logger.log(
+      `Asset ${assetId} stored in Supabase Storage for project ${projectId}`,
+    );
     return toReadyUploadResponse({
       assetId,
       storageRef,
@@ -130,21 +147,39 @@ export class AssetsService {
     const bytes = decodeBase64(dto.dataBase64);
     const chunkPath = `${chunkPrefix(projectId, assetId)}/${dto.chunkIndex}`;
 
-    await this.supabase.uploadObject(chunkPath, Buffer.from(bytes), asset.mimeType, bucket);
+    await this.supabase.uploadObject(
+      chunkPath,
+      Buffer.from(bytes),
+      asset.mimeType,
+      bucket,
+    );
 
     if (dto.isFinalChunk) {
       const prefix = chunkPrefix(projectId, assetId);
-      const chunkPaths = (await this.supabase.listObjectPaths(prefix, bucket))
-        .sort((a, b) => chunkIndexFromPath(a) - chunkIndexFromPath(b));
+      const chunkPaths = (
+        await this.supabase.listObjectPaths(prefix, bucket)
+      ).sort((a, b) => chunkIndexFromPath(a) - chunkIndexFromPath(b));
       const buffers = await Promise.all(
         chunkPaths.map((path) => this.supabase.downloadObject(path, bucket)),
       );
       const merged = Buffer.concat(buffers);
+      await this.storageQuota.assertWithinQuota(
+        userId,
+        projectId,
+        merged.byteLength,
+        assetId,
+      );
       const objectPath =
-        asset.objectPath ?? buildAssetObjectPath(projectId, assetId, asset.name);
+        asset.objectPath ??
+        buildAssetObjectPath(projectId, assetId, asset.name);
       const storageRef = `${SUPABASE_ASSET_REF_PREFIX}/${objectPath}`;
 
-      await this.supabase.uploadObject(objectPath, merged, asset.mimeType, bucket);
+      await this.supabase.uploadObject(
+        objectPath,
+        merged,
+        asset.mimeType,
+        bucket,
+      );
       await this.supabase.deleteObjectsWithPrefix(prefix, bucket);
       await this.appData.updateProjectAssetStatus(assetId, 'ready', {
         sizeBytes: merged.byteLength,
@@ -153,6 +188,7 @@ export class AssetsService {
         bucket,
         objectPath,
       });
+      await this.enqueueAssetIndex(projectId, assetId);
 
       return {
         assetId,
@@ -267,7 +303,9 @@ export class AssetsService {
       dto.metadata,
     );
 
-    this.logger.log(`Importing generated asset from ${dto.sourceProvider}: ${dto.sourceUrl}`);
+    this.logger.log(
+      `Importing generated asset from ${dto.sourceProvider}: ${dto.sourceUrl}`,
+    );
     const response = await fetch(dto.sourceUrl);
     if (!response.ok) {
       throw new Error(
@@ -278,7 +316,15 @@ export class AssetsService {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const contentType =
-      dto.mimeType ?? response.headers.get('content-type') ?? 'application/octet-stream';
+      dto.mimeType ??
+      response.headers.get('content-type') ??
+      'application/octet-stream';
+    await this.storageQuota.assertWithinQuota(
+      userId,
+      projectId,
+      buffer.byteLength,
+      assetId,
+    );
 
     await this.appData.upsertProjectAsset({
       assetId,
@@ -304,8 +350,11 @@ export class AssetsService {
       bucket,
       objectPath,
     });
+    await this.enqueueAssetIndex(projectId, assetId);
 
-    this.logger.log(`Generated asset ${assetId} imported into Supabase for project ${projectId}`);
+    this.logger.log(
+      `Generated asset ${assetId} imported into Supabase for project ${projectId}`,
+    );
     return toReadyUploadResponse({
       assetId,
       storageRef,
@@ -335,9 +384,19 @@ export class AssetsService {
     },
   ): Promise<ProjectAssetUploadResponse> {
     await this.assertProjectAccess(userId, projectId);
+    await this.storageQuota.assertWithinQuota(
+      userId,
+      projectId,
+      input.bytes.byteLength,
+      input.assetId,
+    );
 
     const bucket = this.supabase.getStorageBucket();
-    const objectPath = buildAssetObjectPath(projectId, input.assetId, input.name);
+    const objectPath = buildAssetObjectPath(
+      projectId,
+      input.assetId,
+      input.name,
+    );
     const storageRef = `${SUPABASE_ASSET_REF_PREFIX}/${objectPath}`;
     const metadata = normalizeAssetMetadata(
       input.assetId,
@@ -376,6 +435,7 @@ export class AssetsService {
       bucket,
       objectPath,
     });
+    await this.enqueueAssetIndex(projectId, input.assetId);
 
     return toReadyUploadResponse({
       assetId: input.assetId,
@@ -570,9 +630,13 @@ export class AssetsService {
       status: 'generating',
     });
 
-    const signed = await this.supabase.createSignedUploadUrl(objectPath, bucket, {
-      upsert: true,
-    });
+    const signed = await this.supabase.createSignedUploadUrl(
+      objectPath,
+      bucket,
+      {
+        upsert: true,
+      },
+    );
 
     return {
       assetId,
@@ -596,12 +660,29 @@ export class AssetsService {
     if (!exists) {
       throw new NotFoundException('Asset bytes not found in storage');
     }
-    return this.appData.updateProjectAssetStatus(assetId, 'ready', {
-      sizeBytes: opts?.sizeBytes ?? asset.sizeBytes,
-      storageRef: asset.storageRef,
-      bucket,
-      objectPath: asset.objectPath,
-    });
+    const sizeBytes = opts?.sizeBytes ?? asset.sizeBytes;
+    if (asset.projectId && sizeBytes !== undefined) {
+      await this.storageQuota.assertWithinQuota(
+        asset.uploadedByUserId,
+        asset.projectId,
+        sizeBytes,
+        asset.assetId,
+      );
+    }
+    const ready = await this.appData.updateProjectAssetStatus(
+      assetId,
+      'ready',
+      {
+        sizeBytes,
+        storageRef: asset.storageRef,
+        bucket,
+        objectPath: asset.objectPath,
+      },
+    );
+    if (asset.projectId) {
+      await this.enqueueAssetIndex(asset.projectId, assetId);
+    }
+    return ready;
   }
 
   /**
@@ -646,14 +727,14 @@ export class AssetsService {
     if (!buffer && input.sourceUrl) {
       const response = await fetch(input.sourceUrl);
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch generated asset: ${response.status}`,
-        );
+        throw new Error(`Failed to fetch generated asset: ${response.status}`);
       }
       buffer = Buffer.from(await response.arrayBuffer());
     }
     if (!buffer) {
-      throw new Error('materializeLocalGeneratedAsset requires bytes or sourceUrl');
+      throw new Error(
+        'materializeLocalGeneratedAsset requires bytes or sourceUrl',
+      );
     }
 
     await this.appData.upsertProjectAsset({
@@ -675,7 +756,12 @@ export class AssetsService {
       status: 'generating',
     });
 
-    await this.supabase.uploadObject(objectPath, buffer, input.mimeType, bucket);
+    await this.supabase.uploadObject(
+      objectPath,
+      buffer,
+      input.mimeType,
+      bucket,
+    );
     await this.appData.updateProjectAssetStatus(input.assetId, 'ready', {
       sizeBytes: buffer.byteLength,
       storageRef,
@@ -710,6 +796,13 @@ export class AssetsService {
 
     await this.deleteAssetStorage(asset);
     await this.appData.removeProjectAsset(projectId, assetId);
+    await this.contextIndexQueue.enqueueSource({
+      kind: 'source',
+      projectId,
+      sourceKind: 'asset',
+      sourceId: assetId,
+      sourceHash: canonicalSha256({ assetId, status: 'deleted' }),
+    });
     this.logger.log(`Asset ${assetId} deleted from project ${projectId}`);
   }
 
@@ -731,13 +824,27 @@ export class AssetsService {
     }
   }
 
-  private async assertProjectAccess(userId: string, projectId: string): Promise<void> {
+  private async enqueueAssetIndex(
+    projectId: string,
+    assetId: string,
+  ): Promise<void> {
+    await this.contextIndexQueue.enqueueAsset(projectId, assetId);
+  }
+
+  private async assertProjectAccess(
+    userId: string,
+    projectId: string,
+  ): Promise<void> {
     await requireProjectAccess(this.appData, userId, projectId);
   }
 }
 
-function buildAssetObjectPath(projectId: string, assetId: string, filename: string): string {
-  const safeName = filename.replace(/[^\w.\-]+/g, '_');
+function buildAssetObjectPath(
+  projectId: string,
+  assetId: string,
+  filename: string,
+): string {
+  const safeName = filename.replace(/[^\w.-]+/g, '_');
   return `projects/${projectId}/assets/${assetId}/${safeName}`;
 }
 
@@ -747,9 +854,9 @@ function buildLocalAssetObjectPath(
   assetId: string,
   filename: string,
 ): string {
-  const safeName = filename.replace(/[^\w.\-]+/g, '_');
-  const safeLocal = localProjectId.replace(/[^\w.\-]+/g, '_');
-  const safeOwner = ownerUserId.replace(/[^\w.\-]+/g, '_');
+  const safeName = filename.replace(/[^\w.-]+/g, '_');
+  const safeLocal = localProjectId.replace(/[^\w.-]+/g, '_');
+  const safeOwner = ownerUserId.replace(/[^\w.-]+/g, '_');
   return `local/${safeOwner}/${safeLocal}/assets/${assetId}/${safeName}`;
 }
 

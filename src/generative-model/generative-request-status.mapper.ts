@@ -1,4 +1,7 @@
-import type { RequestStatus, RequestStatusRow } from '../integrations/app-data.types.js';
+import type {
+  RequestStatus,
+  RequestStatusRow,
+} from '../integrations/app-data.types.js';
 import type {
   GenerativeJobStatus,
   GenerativeRequestStatusResponse,

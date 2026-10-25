@@ -86,9 +86,9 @@ describe('resolveHunyuan3dOptions', () => {
   });
 
   it('clamps face count to Hunyuan 3.1 bounds', () => {
-    expect(
-      resolveHunyuan3dOptions({ faceCount: 2_000_000 }).face_count,
-    ).toBe(1_500_000);
+    expect(resolveHunyuan3dOptions({ faceCount: 2_000_000 }).face_count).toBe(
+      1_500_000,
+    );
     expect(resolveHunyuan3dOptions({ faceCount: 10 }).face_count).toBe(40_000);
   });
 });

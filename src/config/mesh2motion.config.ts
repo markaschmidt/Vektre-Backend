@@ -38,7 +38,10 @@ export const mesh2MotionConfig = registerAs(
   'mesh2motion',
   (): Mesh2MotionConfig => {
     const url = resolveAnimatorUrl();
-    const apiKey = process.env['ANIMATOR_API_KEY'] ?? process.env['MESH2MOTION_API_KEY'] ?? '';
+    const apiKey =
+      process.env['ANIMATOR_API_KEY'] ??
+      process.env['MESH2MOTION_API_KEY'] ??
+      '';
     const enabled = Boolean(url);
 
     return {

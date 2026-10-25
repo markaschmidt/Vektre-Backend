@@ -43,7 +43,11 @@ describe('resolveProjectAccess', () => {
   it('grants read-only access to viewers', async () => {
     mockMaybeSingle
       .mockResolvedValueOnce({
-        data: { project_id: 'proj-1', owner_user_id: 'owner-1', status: 'active' },
+        data: {
+          project_id: 'proj-1',
+          owner_user_id: 'owner-1',
+          status: 'active',
+        },
         error: null,
       })
       .mockResolvedValueOnce({
@@ -59,7 +63,11 @@ describe('resolveProjectAccess', () => {
   it('rejects users without active membership', async () => {
     mockMaybeSingle
       .mockResolvedValueOnce({
-        data: { project_id: 'proj-1', owner_user_id: 'owner-1', status: 'active' },
+        data: {
+          project_id: 'proj-1',
+          owner_user_id: 'owner-1',
+          status: 'active',
+        },
         error: null,
       })
       .mockResolvedValueOnce({

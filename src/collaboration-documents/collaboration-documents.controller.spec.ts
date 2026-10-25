@@ -20,6 +20,9 @@ describe('CollaborationDocumentsController', () => {
     deleteComment: jest.fn(),
     listVersions: jest.fn(),
     getVersion: jest.fn(),
+    createVersion: jest.fn(),
+    createVersionPreviewUpload: jest.fn(),
+    completeVersionPreview: jest.fn(),
     restoreVersion: jest.fn(),
     createActivity: jest.fn(),
     listActivityForDocument: jest.fn(),
@@ -140,6 +143,17 @@ describe('CollaborationDocumentsController', () => {
       'doc-1',
       'user-1',
       undefined,
+    );
+  });
+
+  it('delegates named version creation', () => {
+    const dto = { name: 'Pre-layout pass' };
+    void controller.createVersion('proj-1', 'doc-1', dto, user);
+    expect(service.createVersion).toHaveBeenCalledWith(
+      'proj-1',
+      'doc-1',
+      'user-1',
+      dto,
     );
   });
 

@@ -25,12 +25,30 @@ export class ProviderError extends Error {
     }
   }
 
-  static retryable(provider: string, message: string, statusCode?: number): ProviderError {
-    return new ProviderError({ message, provider, retryable: true, statusCode });
+  static retryable(
+    provider: string,
+    message: string,
+    statusCode?: number,
+  ): ProviderError {
+    return new ProviderError({
+      message,
+      provider,
+      retryable: true,
+      statusCode,
+    });
   }
 
-  static permanent(provider: string, message: string, statusCode?: number): ProviderError {
-    return new ProviderError({ message, provider, retryable: false, statusCode });
+  static permanent(
+    provider: string,
+    message: string,
+    statusCode?: number,
+  ): ProviderError {
+    return new ProviderError({
+      message,
+      provider,
+      retryable: false,
+      statusCode,
+    });
   }
 }
 

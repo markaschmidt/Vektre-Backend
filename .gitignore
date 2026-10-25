@@ -28,6 +28,9 @@ lerna-debug.log*
 .settings/
 *.sublime-workspace
 
+# Cursor / planning artifacts
+*.plan.md
+
 # IDE - VSCode
 .vscode/*
 !.vscode/settings.json
@@ -46,6 +49,9 @@ lerna-debug.log*
 # temp directory
 .temp
 .tmp
+
+# Graphify knowledge graph output (generated locally)
+/graphify-out/
 
 # Runtime data
 pids

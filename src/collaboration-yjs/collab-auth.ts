@@ -1,4 +1,8 @@
-import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import {
+  createClient,
+  type SupabaseClient,
+  type User,
+} from '@supabase/supabase-js';
 
 export interface CollabAuthenticatedUser {
   id: string;
@@ -14,14 +18,20 @@ function getAdminClient(): SupabaseClient {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) {
-    throw new Error('Supabase credentials are required for the collaboration server');
+    throw new Error(
+      'Supabase credentials are required for the collaboration server',
+    );
   }
 
-  adminClient = createClient(url, serviceKey, { auth: { persistSession: false } });
+  adminClient = createClient(url, serviceKey, {
+    auth: { persistSession: false },
+  });
   return adminClient;
 }
 
-export async function verifyCollabToken(token: string): Promise<CollabAuthenticatedUser> {
+export async function verifyCollabToken(
+  token: string,
+): Promise<CollabAuthenticatedUser> {
   if (!token?.trim()) {
     throw new Error('Missing collaboration token');
   }

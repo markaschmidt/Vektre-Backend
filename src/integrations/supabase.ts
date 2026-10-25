@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 import type { AuthenticatedUser } from '../auth/authenticated-user.model.js';
 
@@ -15,8 +11,7 @@ export class SupabaseService {
     // Accept either SUPABASE_URL (backend-canonical) or the Vite-prefixed
     // alias present in the shared root .env so the container works without
     // duplicating the value.
-    const url =
-      process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+    const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     const missing: string[] = [];
@@ -26,7 +21,7 @@ export class SupabaseService {
     if (missing.length > 0) {
       throw new Error(
         `Missing required Supabase environment variables: ${missing.join(', ')}. ` +
-        'Get SUPABASE_SERVICE_ROLE_KEY from the Supabase dashboard → Settings → API.',
+          'Get SUPABASE_SERVICE_ROLE_KEY from the Supabase dashboard → Settings → API.',
       );
     }
 
@@ -54,8 +49,7 @@ export class SupabaseService {
    * Retrieve a user by their Supabase ID, used by server-side admin tasks.
    */
   async getUserById(userId: string): Promise<AuthenticatedUser | null> {
-    const { data, error } =
-      await this.client.auth.admin.getUserById(userId);
+    const { data, error } = await this.client.auth.admin.getUserById(userId);
 
     if (error || !data.user) {
       this.logger.warn(`Failed to fetch user ${userId}: ${error?.message}`);
@@ -73,8 +67,7 @@ export class SupabaseService {
     userId: string,
     provider: string,
   ): Promise<string | null> {
-    const { data, error } =
-      await this.client.auth.admin.getUserById(userId);
+    const { data, error } = await this.client.auth.admin.getUserById(userId);
 
     if (error || !data.user) return null;
 
@@ -108,7 +101,7 @@ export class SupabaseService {
     );
     if (!identity?.identity_data) return null;
 
-    const d = identity.identity_data as Record<string, unknown>;
+    const d = identity.identity_data;
     const accessToken = d['provider_token'] as string | undefined;
     if (!accessToken) return null;
 
@@ -130,7 +123,9 @@ export class SupabaseService {
       lookup_email: email.trim().toLowerCase(),
     });
     if (error) {
-      this.logger.warn(`getUserIdByEmail failed for ${email}: ${error.message}`);
+      this.logger.warn(
+        `getUserIdByEmail failed for ${email}: ${error.message}`,
+      );
       return null;
     }
     return (data as string | null) ?? null;
@@ -173,12 +168,16 @@ export class SupabaseService {
     contentType?: string,
     bucket = this.getStorageBucket(),
   ): Promise<void> {
-    const { error } = await this.client.storage.from(bucket).upload(objectPath, data, {
-      contentType: contentType ?? 'application/octet-stream',
-      upsert: true,
-    });
+    const { error } = await this.client.storage
+      .from(bucket)
+      .upload(objectPath, data, {
+        contentType: contentType ?? 'application/octet-stream',
+        upsert: true,
+      });
     if (error) {
-      throw new Error(`Supabase storage upload failed (${objectPath}): ${error.message}`);
+      throw new Error(
+        `Supabase storage upload failed (${objectPath}): ${error.message}`,
+      );
     }
   }
 
@@ -186,7 +185,9 @@ export class SupabaseService {
     objectPath: string,
     bucket = this.getStorageBucket(),
   ): Promise<Buffer> {
-    const { data, error } = await this.client.storage.from(bucket).download(objectPath);
+    const { data, error } = await this.client.storage
+      .from(bucket)
+      .download(objectPath);
     if (error || !data) {
       throw new Error(
         `Supabase storage download failed (${objectPath}): ${error?.message ?? 'empty response'}`,
@@ -199,9 +200,13 @@ export class SupabaseService {
     objectPath: string,
     bucket = this.getStorageBucket(),
   ): Promise<void> {
-    const { error } = await this.client.storage.from(bucket).remove([objectPath]);
+    const { error } = await this.client.storage
+      .from(bucket)
+      .remove([objectPath]);
     if (error) {
-      throw new Error(`Supabase storage delete failed (${objectPath}): ${error.message}`);
+      throw new Error(
+        `Supabase storage delete failed (${objectPath}): ${error.message}`,
+      );
     }
   }
 
@@ -211,7 +216,9 @@ export class SupabaseService {
   ): Promise<string[]> {
     const { data, error } = await this.client.storage.from(bucket).list(prefix);
     if (error) {
-      throw new Error(`Supabase storage list failed (${prefix}): ${error.message}`);
+      throw new Error(
+        `Supabase storage list failed (${prefix}): ${error.message}`,
+      );
     }
     if (!data?.length) return [];
     return data
@@ -227,7 +234,9 @@ export class SupabaseService {
     if (paths.length === 0) return;
     const { error } = await this.client.storage.from(bucket).remove(paths);
     if (error) {
-      throw new Error(`Supabase storage bulk delete failed (${prefix}): ${error.message}`);
+      throw new Error(
+        `Supabase storage bulk delete failed (${prefix}): ${error.message}`,
+      );
     }
   }
 
@@ -248,6 +257,21 @@ export class SupabaseService {
       );
     }
     return data.signedUrl;
+  }
+
+  /**
+   * Public object URL for a public bucket (e.g. org-logos). Does not verify
+   * that the object exists.
+   */
+  getPublicObjectUrl(
+    objectPath: string,
+    bucket = this.getStorageBucket(),
+  ): string {
+    const { data } = this.client.storage.from(bucket).getPublicUrl(objectPath);
+    if (!data?.publicUrl) {
+      throw new Error(`Failed to build public URL (${bucket}/${objectPath})`);
+    }
+    return data.publicUrl;
   }
 
   /**
@@ -287,10 +311,12 @@ export class SupabaseService {
     const name = objectPath.includes('/')
       ? objectPath.slice(objectPath.lastIndexOf('/') + 1)
       : objectPath;
-    const { data, error } = await this.client.storage.from(bucket).list(folder, {
-      search: name,
-      limit: 100,
-    });
+    const { data, error } = await this.client.storage
+      .from(bucket)
+      .list(folder, {
+        search: name,
+        limit: 100,
+      });
     if (error) {
       throw new Error(
         `Supabase storage exists check failed (${objectPath}): ${error.message}`,
@@ -304,7 +330,7 @@ export class SupabaseService {
     return {
       id: user.id,
       email: user.email ?? undefined,
-      role: (meta['role'] as string) ?? (user.role ?? undefined),
+      role: (meta['role'] as string) ?? user.role ?? undefined,
       claims: { ...meta, sub: user.id, iss: 'supabase' },
     };
   }

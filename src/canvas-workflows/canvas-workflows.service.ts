@@ -38,9 +38,12 @@ export class CanvasWorkflowsService {
   }
 
   getCapabilities(projectId: string, documentId: string, userId: string) {
-    return this.withCanvasDocument(projectId, documentId, userId, 'viewer').then(
-      () => buildCanvasCapabilitiesResponse(),
-    );
+    return this.withCanvasDocument(
+      projectId,
+      documentId,
+      userId,
+      'viewer',
+    ).then(() => buildCanvasCapabilitiesResponse());
   }
 
   /**
@@ -129,7 +132,9 @@ export class CanvasWorkflowsService {
     );
 
     if (!isCanvasActionKind(dto.actionKind)) {
-      throw new BadRequestException(`Unsupported actionKind: ${dto.actionKind}`);
+      throw new BadRequestException(
+        `Unsupported actionKind: ${dto.actionKind}`,
+      );
     }
 
     const existing = await this.appData.getCollaborationActivityByRunId(

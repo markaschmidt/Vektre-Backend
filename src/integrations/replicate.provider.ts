@@ -27,11 +27,7 @@ type ReplicateRawStatus =
   | 'canceled';
 
 /** Normalised internal status shared across all providers. */
-export type NormalisedStatus =
-  | 'running'
-  | 'succeeded'
-  | 'failed'
-  | 'canceled';
+export type NormalisedStatus = 'running' | 'succeeded' | 'failed' | 'canceled';
 
 /** 3D model file extensions extracted from prediction output URLs. */
 const MODEL_EXTENSIONS = new Set(['.glb', '.gltf', '.obj', '.zip']);
@@ -53,7 +49,11 @@ export interface ReplicatePrediction {
    * Present on terminated predictions. Includes predict_time / total_time
    * (seconds). Replicate does NOT return a dollar cost field.
    */
-  metrics?: { predict_time?: number; total_time?: number; [k: string]: unknown };
+  metrics?: {
+    predict_time?: number;
+    total_time?: number;
+    [k: string]: unknown;
+  };
 }
 
 export interface NormalisedPrediction {
@@ -66,7 +66,11 @@ export interface NormalisedPrediction {
   errorMessage?: string;
   cancelUrl?: string;
   /** Raw Replicate metrics (predict_time, total_time) when present. */
-  metrics?: { predict_time?: number; total_time?: number; [k: string]: unknown };
+  metrics?: {
+    predict_time?: number;
+    total_time?: number;
+    [k: string]: unknown;
+  };
 }
 
 /**
@@ -138,7 +142,10 @@ export class ReplicateProviderAdapter {
     });
 
     if (!data.id) {
-      throw ProviderError.permanent(PROVIDER, 'Replicate did not return prediction ID');
+      throw ProviderError.permanent(
+        PROVIDER,
+        'Replicate did not return prediction ID',
+      );
     }
 
     this.logger.log(
@@ -165,10 +172,7 @@ export class ReplicateProviderAdapter {
     userId: string;
   }): Promise<string> {
     const url = `${this.cfg.baseUrl}/v1/models/${HUNYUAN_REPLICATE_MODEL_2MV}/predictions`;
-    const input = buildHunyuan2mvInput(
-      opts.views,
-      opts.generation,
-    );
+    const input = buildHunyuan2mvInput(opts.views, opts.generation);
 
     const { data } = await outboundJson<ReplicatePrediction>({
       provider: PROVIDER,
@@ -182,7 +186,10 @@ export class ReplicateProviderAdapter {
     });
 
     if (!data.id) {
-      throw ProviderError.permanent(PROVIDER, 'Replicate did not return prediction ID');
+      throw ProviderError.permanent(
+        PROVIDER,
+        'Replicate did not return prediction ID',
+      );
     }
 
     this.logger.log(
@@ -192,7 +199,8 @@ export class ReplicateProviderAdapter {
         requestId: opts.requestId,
         userId: opts.userId,
         model: HUNYUAN_REPLICATE_MODEL_2MV,
-        viewCount: Object.keys(input).filter((k) => k.endsWith('_image')).length,
+        viewCount: Object.keys(input).filter((k) => k.endsWith('_image'))
+          .length,
       }),
     );
 
@@ -240,7 +248,10 @@ export class ReplicateProviderAdapter {
     });
 
     if (!data.id) {
-      throw ProviderError.permanent(PROVIDER, 'Replicate did not return prediction ID');
+      throw ProviderError.permanent(
+        PROVIDER,
+        'Replicate did not return prediction ID',
+      );
     }
 
     this.logger.log(
@@ -283,7 +294,10 @@ export class ReplicateProviderAdapter {
   /**
    * Cancel a running prediction.
    */
-  async cancelPrediction(predictionId: string, requestId: string): Promise<void> {
+  async cancelPrediction(
+    predictionId: string,
+    requestId: string,
+  ): Promise<void> {
     const url = `${this.cfg.baseUrl}/v1/predictions/${predictionId}/cancel`;
     await outboundJson({
       provider: PROVIDER,
@@ -411,7 +425,9 @@ export function collectOutputUrls(value: unknown): string[] {
     return value.flatMap(collectOutputUrls);
   }
   if (value !== null && typeof value === 'object') {
-    return Object.values(value as Record<string, unknown>).flatMap(collectOutputUrls);
+    return Object.values(value as Record<string, unknown>).flatMap(
+      collectOutputUrls,
+    );
   }
   return [];
 }

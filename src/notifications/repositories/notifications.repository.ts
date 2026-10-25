@@ -76,7 +76,8 @@ export class NotificationsRepository {
       .eq('user_id', userId)
       .is('read_at', null);
 
-    if (error) throw new Error(`notification unread count failed: ${error.message}`);
+    if (error)
+      throw new Error(`notification unread count failed: ${error.message}`);
     return count ?? 0;
   }
 
@@ -94,7 +95,8 @@ export class NotificationsRepository {
       .select('*')
       .maybeSingle();
 
-    if (error) throw new Error(`mark notification read failed: ${error.message}`);
+    if (error)
+      throw new Error(`mark notification read failed: ${error.message}`);
     return data ? mapNotificationRow(data) : null;
   }
 
@@ -108,7 +110,8 @@ export class NotificationsRepository {
       .is('read_at', null)
       .select('notification_id');
 
-    if (error) throw new Error(`mark all notifications read failed: ${error.message}`);
+    if (error)
+      throw new Error(`mark all notifications read failed: ${error.message}`);
     return data?.length ?? 0;
   }
 }
@@ -126,7 +129,8 @@ function mapNotificationRow(row: Record<string, unknown>): NotificationRow {
     parentCommentId: (row.parent_comment_id as string | null) ?? undefined,
     title: row.title as string,
     body: (row.body as string | null) ?? undefined,
-    metadata: (row.metadata_json as Record<string, unknown> | null) ?? undefined,
+    metadata:
+      (row.metadata_json as Record<string, unknown> | null) ?? undefined,
     readAt: row.read_at ? new Date(row.read_at as string) : undefined,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),

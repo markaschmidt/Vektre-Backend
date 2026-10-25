@@ -30,7 +30,9 @@ export function readPngMeta(bytes: Buffer): PngImageMeta {
   const bitDepth = ihdr.readUInt8(8);
   const colorType = ihdr.readUInt8(9);
   if (bitDepth !== 8) {
-    throw new Error(`Unsupported PNG bit depth ${bitDepth}; only 8-bit is supported without sharp`);
+    throw new Error(
+      `Unsupported PNG bit depth ${bitDepth}; only 8-bit is supported without sharp`,
+    );
   }
   const channels = channelsForColorType(colorType);
   return { width, height, colorType, bitDepth, channels };
@@ -146,8 +148,7 @@ function decodePngPixels(bytes: Buffer, meta: PngImageMeta): Buffer {
       const x = inRow + 1 + i;
       const a = i >= bpp ? out[outRow + 1 + i - bpp] : 0;
       const b = y > 0 ? out[(y - 1) * rowSize + 1 + i] : 0;
-      const c =
-        y > 0 && i >= bpp ? out[(y - 1) * rowSize + 1 + i - bpp] : 0;
+      const c = y > 0 && i >= bpp ? out[(y - 1) * rowSize + 1 + i - bpp] : 0;
       let val = inflated[x];
       switch (filter) {
         case 0:

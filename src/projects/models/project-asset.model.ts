@@ -1,4 +1,7 @@
-import type { ProjectAssetRow, ProjectAssetStatus } from '../../integrations/app-data.types.js';
+import type {
+  ProjectAssetRow,
+  ProjectAssetStatus,
+} from '../../integrations/app-data.types.js';
 
 /** Response from synchronous upload/import endpoints once bytes are stored. */
 export interface ProjectAssetUploadResponse {
@@ -66,10 +69,13 @@ export interface ProjectAssetUpsertOperationResponse {
   expectedAssetStatus: 'ready' | 'generating';
 }
 
-export function toProjectAssetListItem(row: ProjectAssetRow): ProjectAssetListItem {
+export function toProjectAssetListItem(
+  row: ProjectAssetRow,
+): ProjectAssetListItem {
   // True only when GET .../bytes is expected to succeed (ready/active + stored object).
   const bytesAvailable =
-    (row.status === 'ready' || row.status === 'active') && Boolean(row.objectPath);
+    (row.status === 'ready' || row.status === 'active') &&
+    Boolean(row.objectPath);
   return {
     assetId: row.assetId,
     // Cloud list endpoints always have projectId; fall back for safety.

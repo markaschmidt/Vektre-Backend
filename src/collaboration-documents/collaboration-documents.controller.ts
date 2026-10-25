@@ -20,6 +20,11 @@ import { CreateReplyDto } from './dto/create-reply.dto.js';
 import { UpdateCommentDto } from './dto/update-comment.dto.js';
 import { CreateActivityDto } from './dto/create-activity.dto.js';
 import { UpdateActivityDto } from './dto/update-activity.dto.js';
+import {
+  CompleteSnapshotPreviewDto,
+  CreateSnapshotDto,
+  CreateSnapshotPreviewUploadDto,
+} from './dto/create-snapshot.dto.js';
 
 @Controller('projects/:projectId')
 export class CollaborationDocumentsController {
@@ -192,6 +197,22 @@ export class CollaborationDocumentsController {
 
   // ─── Version history ───────────────────────────────────────────────────────
 
+  @Post('documents/:documentId/versions')
+  @HttpCode(HttpStatus.CREATED)
+  createVersion(
+    @Param('projectId') projectId: string,
+    @Param('documentId') documentId: string,
+    @Body() dto: CreateSnapshotDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.documents.createVersion(
+      projectId,
+      documentId,
+      user.id,
+      dto,
+    );
+  }
+
   @Get('documents/:documentId/versions')
   listVersions(
     @Param('projectId') projectId: string,
@@ -219,6 +240,40 @@ export class CollaborationDocumentsController {
       documentId,
       snapshotId,
       user.id,
+    );
+  }
+
+  @Post('documents/:documentId/versions/:snapshotId/preview/upload')
+  createVersionPreviewUpload(
+    @Param('projectId') projectId: string,
+    @Param('documentId') documentId: string,
+    @Param('snapshotId') snapshotId: string,
+    @Body() dto: CreateSnapshotPreviewUploadDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.documents.createVersionPreviewUpload(
+      projectId,
+      documentId,
+      snapshotId,
+      user.id,
+      dto,
+    );
+  }
+
+  @Post('documents/:documentId/versions/:snapshotId/preview/complete')
+  completeVersionPreview(
+    @Param('projectId') projectId: string,
+    @Param('documentId') documentId: string,
+    @Param('snapshotId') snapshotId: string,
+    @Body() dto: CompleteSnapshotPreviewDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.documents.completeVersionPreview(
+      projectId,
+      documentId,
+      snapshotId,
+      user.id,
+      dto,
     );
   }
 

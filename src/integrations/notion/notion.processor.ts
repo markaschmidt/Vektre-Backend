@@ -22,7 +22,11 @@ export class NotionProcessor extends WorkerHost {
 
   async process(job: Job<NotionPageImportJob>): Promise<void> {
     this.logger.log(
-      JSON.stringify({ event: 'notion_job_start', jobId: job.id, jobName: job.name }),
+      JSON.stringify({
+        event: 'notion_job_start',
+        jobId: job.id,
+        jobName: job.name,
+      }),
     );
 
     switch (job.name) {
@@ -31,7 +35,7 @@ export class NotionProcessor extends WorkerHost {
       case 'notion-export-page':
         return this.handleExportPage(job);
       default:
-        throw new Error(`Unknown Notion job: ${(job as Job).name as string}`);
+        throw new Error(`Unknown Notion job: ${(job as Job).name}`);
     }
   }
 

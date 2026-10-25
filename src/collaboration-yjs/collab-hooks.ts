@@ -23,6 +23,7 @@ import {
   storeDocumentSnapshot,
 } from './collab-persistence.js';
 import { collabLog } from './collab-log.js';
+import { enqueueUiSnapshotIndexJob } from './ui-context-index-queue.js';
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -168,11 +169,42 @@ export function buildCollabHooks(): CollabHooks {
         (lastContext as { user?: { id?: string } })?.user?.id ?? 'system',
       );
       try {
-        await storeDocumentSnapshot(room, document, userId);
+        const snapshot = await storeDocumentSnapshot(room, document, userId);
         collabLog.info('collab_document_stored', {
           documentKey: room.documentKey,
           userId,
         });
+        if (
+          room.documentType === 'gui_screen' ||
+          room.documentType === 'storyboard'
+        ) {
+          try {
+            const enqueued = await enqueueUiSnapshotIndexJob({
+              kind: 'snapshot',
+              projectId: room.projectId,
+              documentId: room.documentId,
+              documentKey: room.documentKey,
+              documentType: room.documentType,
+              snapshotId: snapshot.snapshotId,
+              stateVector: snapshot.stateVector,
+              storageRef: snapshot.storageRef,
+            });
+            collabLog.info('ui_context_index_snapshot_enqueued', {
+              documentKey: room.documentKey,
+              snapshotId: snapshot.snapshotId,
+              enqueued,
+            });
+          } catch (err) {
+            // Snapshot durability is authoritative. A queue outage must not
+            // fail the collaborative save; the synchronous freshness gate can
+            // catch this revision up before the next AI run.
+            collabLog.error('ui_context_index_enqueue_failed', {
+              documentKey: room.documentKey,
+              snapshotId: snapshot.snapshotId,
+              error: message(err),
+            });
+          }
+        }
       } catch (err) {
         collabLog.error('collab_document_store_failed', {
           documentKey: room.documentKey,

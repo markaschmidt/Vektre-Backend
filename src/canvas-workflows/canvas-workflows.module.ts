@@ -13,12 +13,16 @@ import { ImageEditActionHandler } from './handlers/image-edit.handler.js';
 import { Model3dActionHandler } from './handlers/model-3d.handler.js';
 import { ImageSplitActionHandler } from './handlers/image-split.handler.js';
 import { CANVAS_ACTION_HANDLERS } from './canvas-action.interface.js';
+import { StorageQuotaModule } from '../storage-quota/storage-quota.module.js';
+import { UiContextIndexQueueModule } from '../ui-agent/indexer/ui-context-index-queue.module.js';
 
 @Module({
   imports: [
     BullModule.registerQueue({ name: GENERATIVE_MODEL_QUEUE }),
     IntegrationsModule,
     ProjectsModule,
+    StorageQuotaModule,
+    UiContextIndexQueueModule,
     forwardRef(() => GenerativeModelModule),
   ],
   controllers: [CanvasWorkflowsController],

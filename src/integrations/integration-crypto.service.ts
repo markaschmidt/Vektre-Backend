@@ -41,9 +41,10 @@ export function decryptSecret(key: Buffer, stored: string): string {
 
   const decipher = createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString(
-    'utf8',
-  );
+  return Buffer.concat([
+    decipher.update(ciphertext),
+    decipher.final(),
+  ]).toString('utf8');
 }
 
 /**
@@ -54,7 +55,8 @@ export class IntegrationCryptoService {
   private readonly key: Buffer;
 
   constructor(config: ConfigService) {
-    this.key = config.get<IntegrationCryptoConfig>('integrationCrypto')!.secretsKey;
+    this.key =
+      config.get<IntegrationCryptoConfig>('integrationCrypto')!.secretsKey;
   }
 
   isEncrypted(value: string): boolean {

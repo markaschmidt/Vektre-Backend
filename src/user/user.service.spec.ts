@@ -4,6 +4,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import { UserService } from './user.service.js';
 import { AppDataService } from '../integrations/app-data.service.js';
 import { USER_OPS_QUEUE } from '../queues/queue-names.js';
+import { BillingService } from '../billing/billing.service.js';
 
 const mockQueue = { add: jest.fn() };
 const mockAppData = {
@@ -11,12 +12,15 @@ const mockAppData = {
   createRequestStatus: jest.fn(),
   getUserProfile: jest.fn(),
 };
+const mockBilling = {
+  startOnboardingEntitlement: jest.fn().mockResolvedValue(undefined),
+};
 
 const savedProfile = {
   userId: 'user-1',
   displayName: 'Mark Schmidt',
   avatarUrl: 'https://example.com/a.png',
-  plan: 'indie_pro' as const,
+  plan: 'professional' as const,
   preferences: {
     onboardingCompleted: true,
     firstName: 'Mark',
@@ -25,7 +29,7 @@ const savedProfile = {
     userType: 'indie' as const,
     useCase: 'game_development' as const,
     company: 'Optional Studio',
-    selectedPlan: 'indie_pro' as const,
+    selectedPlan: 'professional' as const,
   },
   organizationId: null,
   storageId: null,
@@ -43,6 +47,7 @@ describe('UserService', () => {
         UserService,
         { provide: getQueueToken(USER_OPS_QUEUE), useValue: mockQueue },
         { provide: AppDataService, useValue: mockAppData },
+        { provide: BillingService, useValue: mockBilling },
       ],
     }).compile();
     service = module.get(UserService);
@@ -52,7 +57,9 @@ describe('UserService', () => {
   describe('getProfile', () => {
     it('returns 404 when no profile row exists', async () => {
       mockAppData.getUserProfile.mockResolvedValue(null);
-      await expect(service.getProfile('user-1')).rejects.toThrow(NotFoundException);
+      await expect(service.getProfile('user-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('returns snake_case API profile when a row exists', async () => {
@@ -63,10 +70,10 @@ describe('UserService', () => {
           id: 'user-1',
           display_name: 'Mark Schmidt',
           onboarding_completed: true,
-          plan: 'indie_pro',
+          plan: 'professional',
           preferences: expect.objectContaining({
             firstName: 'Mark',
-            selectedPlan: 'indie_pro',
+            selectedPlan: 'professional',
           }),
         }),
       );
@@ -75,7 +82,7 @@ describe('UserService', () => {
   });
 
   describe('updateProfile', () => {
-    it('creates a profile on first PATCH (onboarding)', async () => {
+    it('creates a profile on first PATCH (onboarding) and starts billing', async () => {
       mockAppData.getUserProfile
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(savedProfile);
@@ -83,7 +90,7 @@ describe('UserService', () => {
       const result = await service.updateProfile('user-1', {
         displayName: 'Mark Schmidt',
         avatarUrl: 'https://example.com/a.png',
-        plan: 'indie_pro',
+        plan: 'professional',
         preferences: {
           onboardingCompleted: true,
           firstName: 'Mark',
@@ -92,16 +99,20 @@ describe('UserService', () => {
           userType: 'indie',
           useCase: 'game_development',
           company: 'Optional Studio',
-          selectedPlan: 'indie_pro',
+          selectedPlan: 'professional',
         },
       });
 
       expect(mockAppData.upsertUserProfile).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'user-1',
-          plan: 'indie_pro',
+          plan: 'professional',
           preferences: expect.objectContaining({ onboardingCompleted: true }),
         }),
+      );
+      expect(mockBilling.startOnboardingEntitlement).toHaveBeenCalledWith(
+        'user-1',
+        'professional',
       );
       expect(result.onboarding_completed).toBe(true);
     });
@@ -119,7 +130,9 @@ describe('UserService', () => {
       expect(mockQueue.add).toHaveBeenCalledWith(
         'recalculate-preferences',
         expect.objectContaining({ userId: 'user-1' }),
-        expect.objectContaining({ jobId: expect.stringContaining('user-user-1-prefs-') }),
+        expect.objectContaining({
+          jobId: expect.stringContaining('user-user-1-prefs-'),
+        }),
       );
     });
 
@@ -134,29 +147,73 @@ describe('UserService', () => {
             lastName: 'Schmidt',
             userType: 'indie',
             useCase: 'game_development',
-            selectedPlan: 'indie_pro',
+            selectedPlan: 'professional',
           },
         }),
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('rejects enterprise onboarding with an indie plan', async () => {
-      mockAppData.getUserProfile.mockResolvedValue(null);
-
-      await expect(
-        service.updateProfile('user-1', {
-          plan: 'indie_pro',
+    it('allows enterprise userType with any valid plan', async () => {
+      mockAppData.getUserProfile
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          ...savedProfile,
+          plan: 'studio',
           preferences: {
-            onboardingCompleted: true,
-            firstName: 'Mark',
-            lastName: 'Schmidt',
-            role: 'Developer',
+            ...savedProfile.preferences,
             userType: 'enterprise',
-            useCase: 'game_development',
-            selectedPlan: 'indie_pro',
+            selectedPlan: 'studio',
           },
+        });
+
+      await service.updateProfile('user-1', {
+        plan: 'studio',
+        preferences: {
+          onboardingCompleted: true,
+          firstName: 'Mark',
+          lastName: 'Schmidt',
+          role: 'Developer',
+          userType: 'enterprise',
+          useCase: 'game_development',
+          selectedPlan: 'studio',
+        },
+      });
+
+      expect(mockBilling.startOnboardingEntitlement).toHaveBeenCalledWith(
+        'user-1',
+        'studio',
+      );
+    });
+
+    it('maps organizationName to company during onboarding', async () => {
+      mockAppData.getUserProfile
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(savedProfile);
+
+      await service.updateProfile('user-1', {
+        displayName: 'Mark Schmidt',
+        preferences: {
+          onboardingCompleted: true,
+          firstName: 'Mark',
+          lastName: 'Schmidt',
+          role: 'Developer',
+          userType: 'indie',
+          useCase: 'game_development',
+          organizationName: 'Reef Studio',
+          selectedPlan: 'professional',
+        },
+      });
+
+      expect(mockAppData.upsertUserProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          preferences: expect.objectContaining({
+            company: 'Reef Studio',
+          }),
         }),
-      ).rejects.toThrow(BadRequestException);
+      );
+      expect(
+        mockAppData.upsertUserProfile.mock.calls[0][0].preferences,
+      ).not.toHaveProperty('organizationName');
     });
 
     it('rejects onboarding when top-level plan conflicts with selectedPlan', async () => {
@@ -164,7 +221,7 @@ describe('UserService', () => {
 
       await expect(
         service.updateProfile('user-1', {
-          plan: 'indie_free',
+          plan: 'free',
           preferences: {
             onboardingCompleted: true,
             firstName: 'Mark',
@@ -172,7 +229,7 @@ describe('UserService', () => {
             role: 'Developer',
             userType: 'indie',
             useCase: 'game_development',
-            selectedPlan: 'indie_pro',
+            selectedPlan: 'professional',
           },
         }),
       ).rejects.toThrow(BadRequestException);
@@ -183,12 +240,18 @@ describe('UserService', () => {
     it('creates a status row and enqueues the sync job with a stable jobId', async () => {
       const result = await service.syncProviderDocuments('user-1', 'google');
       expect(mockAppData.createRequestStatus).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'user-1', type: 'sync-provider-documents', status: 'queued' }),
+        expect.objectContaining({
+          userId: 'user-1',
+          type: 'sync-provider-documents',
+          status: 'queued',
+        }),
       );
       expect(mockQueue.add).toHaveBeenCalledWith(
         'sync-provider-documents',
         expect.objectContaining({ provider: 'google' }),
-        expect.objectContaining({ jobId: expect.stringContaining('user-user-1-sync-google-') }),
+        expect.objectContaining({
+          jobId: expect.stringContaining('user-user-1-sync-google-'),
+        }),
       );
       expect(result.status).toBe('queued');
     });

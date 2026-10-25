@@ -8,7 +8,8 @@ export function resolveCollabWsUrl(): string {
   const explicit = process.env.COLLAB_PUBLIC_URL;
   if (explicit) return explicit;
 
-  const port = process.env.COLLAB_HOST_PORT ?? process.env.COLLAB_PORT ?? '3012';
+  const port =
+    process.env.COLLAB_HOST_PORT ?? process.env.COLLAB_PORT ?? '3012';
   return `ws://localhost:${port}`;
 }
 

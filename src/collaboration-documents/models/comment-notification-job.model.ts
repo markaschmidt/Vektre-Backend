@@ -31,7 +31,11 @@ export function toCommentNotificationInput(
       authorUserId: job.authorUserId,
       commentId: job.commentId,
       body: job.body,
-      targetType: job.documentId ? 'document' : job.assetId ? 'asset' : 'project',
+      targetType: job.documentId
+        ? 'document'
+        : job.assetId
+          ? 'asset'
+          : 'project',
       targetId: job.documentId ?? job.assetId ?? job.projectId,
       parentCommentId: job.parentCommentId,
     };
